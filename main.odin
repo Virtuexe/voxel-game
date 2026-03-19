@@ -2,6 +2,8 @@ package voxel_game
 
 import "core:fmt"
 import rl "vendor:raylib"
+import rlgl "vendor:raylib/rlgl"
+
 import "core:math"
 import "core:math/linalg"
 
@@ -35,6 +37,7 @@ mouse_sensitivity: f32 = 0.1
 
 is_grounded: bool
 velocity: Vec3
+in_menu: bool
 mouse_lock: bool
 yaw: f32 = -90
 pitch: f32
@@ -61,22 +64,38 @@ main :: proc() {
     rl.SetTargetFPS(60)
     rl.SetExitKey(rl.KeyboardKey.KEY_NULL)
 
+    init()
+    init_code()
 
+    for !rl.WindowShouldClose() {        
+        update()
+        update_code()
+        rl.BeginDrawing()
+        draw()
+        draw_code()
+        rl.EndDrawing()
+    }
+
+    for block in Block_Type {
+        rl.UnloadTexture(block_textures[block])
+    }
+    rl.UnloadModel(block_model)
+    rl.CloseWindow()
+}
+
+init :: proc() {
     block_mesh = rl.GenMeshPlane(1, 1, 1, 1)
     block_model = rl.LoadModelFromMesh(block_mesh)
     for block in Block_Type {
         if block == .Air do continue
         block_textures[block] = rl.LoadTexture(block_paths[block])
     }
-    defer for block in Block_Type {
-        rl.UnloadTexture(block_textures[block])
-    }
 
     for i in 0..<10*10 {
         x: i32 = i32(i/10)
-        z: i32 = -i32(i%10)
-        blocks[flatten({x, 0, -z})] = .Stone
-        blocks[flatten({x, 1, -z})] = .Dirt
+        z: i32 = i32(i%10)
+        blocks[flatten({x, 0, z})] = .Stone
+        blocks[flatten({x, 1, z})] = .Dirt
     }
 
     block_in_hand = .Dirt
@@ -84,25 +103,17 @@ main :: proc() {
     apply_gravity = true
     is_flying = false
     can_jump = true
-
-    for !rl.WindowShouldClose() {        
-        update()
-        rl.BeginDrawing()
-        draw()
-        rl.EndDrawing()
-    }
-
-    rl.UnloadModel(block_model)
-    rl.CloseWindow()
 }
 
 update :: proc() {
     screen = [2]i32{rl.GetScreenWidth(), rl.GetScreenHeight()}
     delta := rl.GetFrameTime()
     //ESC
+    mouse_lock = true
     if rl.IsKeyPressed(.ESCAPE) {
-        mouse_lock = !mouse_lock
+        in_menu = !in_menu
     }
+    if in_menu || in_code do mouse_lock = false
     //LOOK
     if mouse_lock {
         mouse_delta := rl.GetMouseDelta()
@@ -231,8 +242,8 @@ draw :: proc() {
             color := rl.WHITE
             rl.DrawModel(block_model, p + item.pos, 1, color)
             if i == target_block {
-                white_glaze := rl.Color{255, 255, 255, 50} 
-                rl.DrawCube(p, 1.01, 1.01, 1.01, white_glaze)
+                white_glaze := rl.Color{255, 255, 255, 25}
+                rl.DrawCube(p, 1.001, 1.001, 1.001, white_glaze)
             }
         }
     }
