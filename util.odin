@@ -1,5 +1,4 @@
 package voxel_game
-import ui "../raylib-ui"
 
 flatten :: proc(pos: [3]i32) -> int {
     return int(pos.x + (pos.y * CHUNK.y) + (pos.z * CHUNK.y * CHUNK.z))

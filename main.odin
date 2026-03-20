@@ -37,7 +37,9 @@ mouse_sensitivity: f32 = 0.1
 
 is_grounded: bool
 velocity: Vec3
-in_menu: bool
+in_menu: bool = false
+use_key_input: bool = true
+use_mouse_input: bool = true
 mouse_lock: bool
 yaw: f32 = -90
 pitch: f32
@@ -91,9 +93,9 @@ init :: proc() {
         block_textures[block] = rl.LoadTexture(block_paths[block])
     }
 
-    for i in 0..<10*10 {
-        x: i32 = i32(i/10)
-        z: i32 = i32(i%10)
+    for i in 0..<16*16 {
+        x: i32 = i32(i/16)
+        z: i32 = i32(i%16)
         blocks[flatten({x, 0, z})] = .Stone
         blocks[flatten({x, 1, z})] = .Dirt
     }
@@ -110,10 +112,15 @@ update :: proc() {
     delta := rl.GetFrameTime()
     //ESC
     mouse_lock = true
+    use_key_input = true
+    use_mouse_input = true
     if rl.IsKeyPressed(.ESCAPE) {
         in_menu = !in_menu
     }
-    if in_menu || in_code do mouse_lock = false
+    if in_menu || in_code {
+        mouse_lock = false
+        use_mouse_input = false
+    }
     //LOOK
     if mouse_lock {
         mouse_delta := rl.GetMouseDelta()
@@ -141,55 +148,38 @@ update :: proc() {
     //RAYCAST
     raycast()
     //INTERACTION
-    if rl.IsKeyDown(.ONE) {
-        block_in_hand = .Dirt
-    }
-    if rl.IsKeyDown(.TWO) {
-        block_in_hand = .Stone
+    if use_key_input {
+        if rl.IsKeyDown(.ONE) {
+            block_in_hand = .Dirt
+        }
+        if rl.IsKeyDown(.TWO) {
+            block_in_hand = .Stone
+        }
     }
 
-    if rl.IsMouseButtonPressed(.LEFT) && target_block != -1 {
-        blocks[target_block] = .Air
-        raycast()
-    }
-    if rl.IsMouseButtonPressed(.RIGHT) && target_block != -1 {
-    if !is_overlapping(cam.position, unflatten(place_block), block_in_hand) {
-            blocks[place_block] = block_in_hand
+    if use_mouse_input {
+        if rl.IsMouseButtonPressed(.LEFT) && target_block != -1 {
+            blocks[target_block] = .Air
             raycast()
-    }}
+        }
+        if rl.IsMouseButtonPressed(.RIGHT) && target_block != -1 {
+        if !is_overlapping(cam.position, unflatten(place_block), block_in_hand) {
+                blocks[place_block] = block_in_hand
+                raycast()
+        }}
+    }
     //MOVEMENT
     move_speed := move_speed
     if rl.IsKeyDown(.LEFT_CONTROL) {
         move_speed *= 1.5
     }
-    Key_Vec :: struct{key: rl.KeyboardKey, pos: Vec3}
-    key_vec_move := []Key_Vec {
-        {.W, forward_move},
-        {.S, -forward_move},
-        {.D, right_move},
-        {.A, -right_move},
-    }
-    key_vec_fly := []Key_Vec {
-        {.SPACE, up},
-        {.LEFT_SHIFT, -up},
-    }
     wasd: Vec3
-    for item in key_vec_move {
-        if rl.IsKeyDown(item.key) {
-            wasd += item.pos
-        } 
-    }
-    if is_flying do for item in key_vec_fly {
-        if rl.IsKeyDown(item.key) {
-            wasd += item.pos
-        }
-    }
-    wasd = linalg.normalize0(wasd)
+    if use_key_input do wasd = get_wasd_input(forward_move, right_move, up)
     movement := wasd * delta * move_speed
     if apply_gravity {
         velocity.y -= gravity * delta
     }
-    if rl.IsKeyPressed(.SPACE) && is_grounded {
+    if rl.IsKeyPressed(.SPACE) && is_grounded && use_key_input {
         velocity.y = jump_strength
     }
     movement += velocity * delta
@@ -272,6 +262,31 @@ raycast :: proc() {
             place_block = flatten(from_vec3(pos + closest_hit.normal))
         }
     }
+}
+get_wasd_input :: proc(forward, right, up: Vec3) -> (wasd:Vec3) {
+    Key_Vec :: struct{key: rl.KeyboardKey, pos: Vec3}
+    key_vec_move := []Key_Vec {
+        {.W, forward},
+        {.S, -forward},
+        {.D, right},
+        {.A, -right},
+    }
+    key_vec_fly := []Key_Vec {
+        {.SPACE, up},
+        {.LEFT_SHIFT, -up},
+    }
+    for item in key_vec_move {
+        if rl.IsKeyDown(item.key) {
+            wasd += item.pos
+        } 
+    }
+    if is_flying do for item in key_vec_fly {
+        if rl.IsKeyDown(item.key) {
+            wasd += item.pos
+        }
+    }
+    wasd = linalg.normalize0(wasd)
+    return
 }
 is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block_Type) -> bool {
     if block == .Air do return false
