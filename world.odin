@@ -1,27 +1,69 @@
 package voxel_game
-Block :: union {
-    Stateless_Block, Redstone
+Block :: struct {
+    type: Block_Type,
+    data: Block_Data,
 }
-Stateless_Block :: enum {
-    Air, Dirt, Stone
+Block_Type :: enum {
+    Air, Dirt, Stone,
+    Redstone,
+}
+Block_Data :: struct #raw_union {
+    Redstone,
+}
+is_block_stateless :: proc(block: Block) -> bool {
+    #partial switch block.type {
+    case .Air, .Dirt, .Stone:
+        return true
+    case: 
+        return false
+    }
 }
 Redstone :: struct {
     rotation: Side,
-    connections: [Direction]bool
+    connections: [Direction]bool,
 }
 
 World_State :: struct {
-    //palette: [dynamic]Block,
-    blocks: [16*16*16]Stateless_Block,
+    palette: [dynamic]Block,
+    block_keys: [16*16*16]int,
 }
 world: ^World_State
 
 world_init :: proc() {
     world = &state.world
+    world.palette = init_palette()
+    stone := palette_provide_block({.Stone, {}})
+    dirt := palette_provide_block({.Dirt, {}})
     for i in 0..<16*16 {
         x: i32 = i32(i/16)
         z: i32 = i32(i%16)
-        world.blocks[flatten({x, 0, z})] = .Stone
-        world.blocks[flatten({x, 1, z})] = .Dirt
+        world.block_keys[flatten({x, 0, z})] = stone
+        world.block_keys[flatten({x, 1, z})] = dirt
     }
+}
+
+init_palette :: proc() -> [dynamic]Block {
+    palette := make([dynamic]Block)
+    append(&palette, Block{.Air, {}})
+    return palette
+}
+//Returns the block id from palette. If the block is not present it will get created.
+palette_provide_block :: proc(block: Block) -> int {
+    for search_block, id in world.palette {
+        if search_block == block {
+            return id
+        }
+    }
+    append(&world.palette, block)
+    return len(world.palette)-1
+}
+
+//Return the block id from palette -1 if not found.
+palette_get_block_key :: proc(block: Block) -> int {
+    for search_block, id in world.palette {
+        if search_block == block {
+            return id
+        }
+    }
+    return -1
 }

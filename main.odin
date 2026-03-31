@@ -20,11 +20,7 @@ CHUNK :: [3]i32{16, 16, 16}
 
 block_mesh: rl.Mesh
 block_model: rl.Model
-block_paths := #partial [Stateless_Block]cstring {
-    .Dirt = "assets/dirt.png",
-    .Stone = "assets/stone.png",
-}
-block_textures: [Stateless_Block]rl.Texture2D
+block_textures: [Block_Type]rl.Texture2D
 State :: struct {
     cam: rl.Camera3D,
     code: Code_State,
@@ -49,7 +45,7 @@ State :: struct {
     use_mouse_input: bool,
     mouse_lock: bool,
     //INTERACTION
-    block_in_hand: Stateless_Block,
+    block_in_hand: Block,
     target_block: int,
     place_block: int,
     //COLLISION
@@ -101,8 +97,9 @@ main :: proc() {
         rl.EndDrawing()
     }
 
-    for block in Stateless_Block {
-        rl.UnloadTexture(block_textures[block])
+    for texture in block_textures {
+        if texture == {} do continue
+        rl.UnloadTexture(texture)
     }
     rl.UnloadModel(block_model)
     rl.CloseWindow()
@@ -112,14 +109,17 @@ init :: proc() {
     calc_window()
     block_mesh = rl.GenMeshPlane(1, 1, 1, 1)
     block_model = rl.LoadModelFromMesh(block_mesh)
-    for block in Stateless_Block {
-        if block == .Air do continue
-        block_textures[block] = rl.LoadTexture(block_paths[block])
+
+    block_textures = {
+        .Air = {},
+        .Dirt = rl.LoadTexture("assets/dirt.png"),
+        .Stone = rl.LoadTexture("assets/stone.png"),
+        .Redstone = {},
     }
 
     world_init()
 
-    state.block_in_hand = .Dirt
+    state.block_in_hand = {.Dirt, {}}
 
     state.apply_gravity = true
     state.is_flying = false
@@ -129,7 +129,7 @@ init :: proc() {
 
 update :: proc() {
     calc_window()
-    delta := rl.GetFrameTime()
+    delta := get_delta()
     //ESC
     state.mouse_lock = true
     state.use_key_input = true
@@ -170,21 +170,21 @@ update :: proc() {
     //INTERACTION
     if state.use_key_input {
         if rl.IsKeyDown(.ONE) {
-            state.block_in_hand = .Dirt
+            state.block_in_hand = {.Dirt, {}}
         }
         if rl.IsKeyDown(.TWO) {
-            state.block_in_hand = .Stone
+            state.block_in_hand = {.Stone, {}}
         }
     }
 
     if state.use_mouse_input {
         if rl.IsMouseButtonPressed(.LEFT) && state.target_block != -1 {
-            world.blocks[state.target_block] = .Air
+            world.block_keys[state.target_block] = palette_get_block_key({.Air, {}})
             raycast()
         }
         if rl.IsMouseButtonPressed(.RIGHT) && state.target_block != -1 {
         if !is_overlapping(state.cam.position, unflatten(state.place_block), state.block_in_hand) {
-                world.blocks[state.place_block] = state.block_in_hand
+                world.block_keys[state.place_block] = palette_get_block_key(state.block_in_hand)
                 raycast()
         }}
     }
@@ -207,7 +207,7 @@ update :: proc() {
     state.is_grounded = false
     for i in 0..<3 {
         state.cam.position[i] += movement[i]
-        for block, block_i in world.blocks {
+        for block, block_i in world.block_keys {
             block_pos := to_vec3(unflatten(block_i))
             if !is_overlapping_at(state.cam.position, block_i) do continue
 
@@ -234,9 +234,12 @@ draw :: proc() {
     rl.ClearBackground(rl.BLACK)
     rl.BeginMode3D(state.cam)
     
-    for block, i in world.blocks {
-        if block == .Air do continue
-        texture := block_textures[block]
+    for block_key, i in world.block_keys {
+        normal_block: Block
+        ok: bool
+        if block_key == palette_get_block_key({.Air, {}}) do continue
+        block := world.palette[block_key]
+        texture := block_textures[block.type]
         rl.SetMaterialTexture(&block_model.materials[0], .ALBEDO, texture)
         p := to_vec3(unflatten(i))
         items := [?]struct{pos: Vec3, euler: Vec3} {
@@ -263,6 +266,9 @@ draw :: proc() {
     draw_code()
 }
 
+get_delta :: proc() -> f32 {
+    return min(0.2, rl.GetFrameTime())
+}
 calc_window :: proc() {
     screen = Vec2{f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}
     center = screen/2
@@ -274,9 +280,9 @@ raycast :: proc() {
     closest_hit := rl.RayCollision{ distance = 5.0 }
     state.target_block = -1
 
-    for block, i in world.blocks {
+    for block, i in world.block_keys {
         pos := to_vec3(unflatten(i))
-        if block == .Air do continue
+        if block == palette_get_block_key({.Air,{}}) do continue
         min_box := pos - rl.Vector3{0.5, 0.5, 0.5} 
         max_box := pos + rl.Vector3{0.5, 0.5, 0.5}
         bbox := rl.BoundingBox{min_box, max_box}
@@ -315,8 +321,9 @@ get_wasd_input :: proc(forward, right, up: Vec3) -> (wasd:Vec3) {
     wasd = linalg.normalize0(wasd)
     return
 }
-is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Stateless_Block) -> bool {
-    if block == .Air do return false
+is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block) -> bool {
+    if block == {.Air, {}} do return false
+    if !is_block_stateless(block) do return false 
     block_pos := to_vec3(block_pos)
 
     p_min := player - state.collider_offset
@@ -331,6 +338,6 @@ is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Stateless_Block) 
     return overlap_x > 0.001 && overlap_y > 0.001 && overlap_z > 0.001
 }
 is_overlapping_at :: proc(player: Vec3, block: int) -> bool {
-    return is_overlapping(player, unflatten(block), world.blocks[block])
+    return is_overlapping(player, unflatten(block), world.palette[world.block_keys[block]])
 }
 
