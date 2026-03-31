@@ -10,9 +10,8 @@ import "core:math/linalg"
 Vec2 :: rl.Vector2
 Vec3 :: rl.Vector3
 
-Block_Type :: enum {
-    Air, Dirt, Stone
-}
+Side :: enum{Front, Back, Right, Left, Up, Down}
+Direction :: enum{Front, Back, Right, Left}
 
 screen: [2]f32
 center: [2]f32
@@ -21,15 +20,15 @@ CHUNK :: [3]i32{16, 16, 16}
 
 block_mesh: rl.Mesh
 block_model: rl.Model
-blocks: [16*16*16]Block_Type
-block_paths := #partial [Block_Type]cstring {
+block_paths := #partial [Stateless_Block]cstring {
     .Dirt = "assets/dirt.png",
     .Stone = "assets/stone.png",
 }
-block_textures: [Block_Type]rl.Texture2D
+block_textures: [Stateless_Block]rl.Texture2D
 State :: struct {
     cam: rl.Camera3D,
     code: Code_State,
+    world: World_State,
     //MOVEMENT & LOOK
     //rules
     apply_gravity: bool,
@@ -50,7 +49,7 @@ State :: struct {
     use_mouse_input: bool,
     mouse_lock: bool,
     //INTERACTION
-    block_in_hand: Block_Type,
+    block_in_hand: Stateless_Block,
     target_block: int,
     place_block: int,
     //COLLISION
@@ -102,7 +101,7 @@ main :: proc() {
         rl.EndDrawing()
     }
 
-    for block in Block_Type {
+    for block in Stateless_Block {
         rl.UnloadTexture(block_textures[block])
     }
     rl.UnloadModel(block_model)
@@ -113,17 +112,12 @@ init :: proc() {
     calc_window()
     block_mesh = rl.GenMeshPlane(1, 1, 1, 1)
     block_model = rl.LoadModelFromMesh(block_mesh)
-    for block in Block_Type {
+    for block in Stateless_Block {
         if block == .Air do continue
         block_textures[block] = rl.LoadTexture(block_paths[block])
     }
 
-    for i in 0..<16*16 {
-        x: i32 = i32(i/16)
-        z: i32 = i32(i%16)
-        blocks[flatten({x, 0, z})] = .Stone
-        blocks[flatten({x, 1, z})] = .Dirt
-    }
+    world_init()
 
     state.block_in_hand = .Dirt
 
@@ -185,12 +179,12 @@ update :: proc() {
 
     if state.use_mouse_input {
         if rl.IsMouseButtonPressed(.LEFT) && state.target_block != -1 {
-            blocks[state.target_block] = .Air
+            world.blocks[state.target_block] = .Air
             raycast()
         }
         if rl.IsMouseButtonPressed(.RIGHT) && state.target_block != -1 {
         if !is_overlapping(state.cam.position, unflatten(state.place_block), state.block_in_hand) {
-                blocks[state.place_block] = state.block_in_hand
+                world.blocks[state.place_block] = state.block_in_hand
                 raycast()
         }}
     }
@@ -213,7 +207,7 @@ update :: proc() {
     state.is_grounded = false
     for i in 0..<3 {
         state.cam.position[i] += movement[i]
-        for block, block_i in blocks {
+        for block, block_i in world.blocks {
             block_pos := to_vec3(unflatten(block_i))
             if !is_overlapping_at(state.cam.position, block_i) do continue
 
@@ -240,7 +234,7 @@ draw :: proc() {
     rl.ClearBackground(rl.BLACK)
     rl.BeginMode3D(state.cam)
     
-    for block, i in blocks {
+    for block, i in world.blocks {
         if block == .Air do continue
         texture := block_textures[block]
         rl.SetMaterialTexture(&block_model.materials[0], .ALBEDO, texture)
@@ -280,7 +274,7 @@ raycast :: proc() {
     closest_hit := rl.RayCollision{ distance = 5.0 }
     state.target_block = -1
 
-    for block, i in blocks {
+    for block, i in world.blocks {
         pos := to_vec3(unflatten(i))
         if block == .Air do continue
         min_box := pos - rl.Vector3{0.5, 0.5, 0.5} 
@@ -321,7 +315,7 @@ get_wasd_input :: proc(forward, right, up: Vec3) -> (wasd:Vec3) {
     wasd = linalg.normalize0(wasd)
     return
 }
-is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block_Type) -> bool {
+is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Stateless_Block) -> bool {
     if block == .Air do return false
     block_pos := to_vec3(block_pos)
 
@@ -337,6 +331,6 @@ is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block_Type) -> bo
     return overlap_x > 0.001 && overlap_y > 0.001 && overlap_z > 0.001
 }
 is_overlapping_at :: proc(player: Vec3, block: int) -> bool {
-    return is_overlapping(player, unflatten(block), blocks[block])
+    return is_overlapping(player, unflatten(block), world.blocks[block])
 }
 
