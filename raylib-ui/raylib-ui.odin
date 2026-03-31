@@ -149,8 +149,8 @@ cut :: proc(target: Rec, side: Side, amount: f32) -> (res: Rec, piece: Rec) {
     return res, piece
 }
 
-write :: proc(dir: Side, rec: Rec, from: Vec2, cursor: ^f32) -> Rec {
-    res := rec
+write :: proc(dir: Side, rec_size: Vec2, from: Vec2, cursor: ^f32) -> Rec {
+    res := Rec{{}, rec_size}
     res.pos = from
 
     switch dir {
@@ -159,14 +159,14 @@ write :: proc(dir: Side, rec: Rec, from: Vec2, cursor: ^f32) -> Rec {
         cursor^ += res.size.x
 
     case .Left:
-        res.pos.x -= cursor^
         cursor^ += res.size.x
+        res.pos.x -= cursor^
     case .Bottom:
         res.pos.y += cursor^
         cursor^ += res.size.y
     case .Top:
-        res.pos.y -= cursor^
         cursor^ += res.size.y
+        res.pos.y -= cursor^
     }
 
     return res

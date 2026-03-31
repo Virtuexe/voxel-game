@@ -14,7 +14,8 @@ Block_Type :: enum {
     Air, Dirt, Stone
 }
 
-screen: [2]i32
+screen: [2]f32
+center: [2]f32
 
 CHUNK :: [3]i32{16, 16, 16}
 
@@ -28,6 +29,7 @@ block_paths := #partial [Block_Type]cstring {
 block_textures: [Block_Type]rl.Texture2D
 State :: struct {
     cam: rl.Camera3D,
+    code: Code_State,
     //MOVEMENT & LOOK
     //rules
     apply_gravity: bool,
@@ -108,6 +110,7 @@ main :: proc() {
 }
 
 init :: proc() {
+    calc_window()
     block_mesh = rl.GenMeshPlane(1, 1, 1, 1)
     block_model = rl.LoadModelFromMesh(block_mesh)
     for block in Block_Type {
@@ -127,10 +130,11 @@ init :: proc() {
     state.apply_gravity = true
     state.is_flying = false
     state.can_jump = true
+    init_code()
 }
 
 update :: proc() {
-    screen = [2]i32{rl.GetScreenWidth(), rl.GetScreenHeight()}
+    calc_window()
     delta := rl.GetFrameTime()
     //ESC
     state.mouse_lock = true
@@ -139,7 +143,7 @@ update :: proc() {
     if rl.IsKeyPressed(.ESCAPE) {
         state.in_menu = !state.in_menu
     }
-    if state.in_menu /*|| in_code*/ {
+    if state.in_menu || state.code.in_code {
         state.mouse_lock = false
         state.use_mouse_input = false
     }
@@ -162,7 +166,7 @@ update :: proc() {
     right_move := linalg.normalize(linalg.vector_cross3(forward_move, up))
     if state.mouse_lock {
         rl.HideCursor()
-        rl.SetMousePosition(screen.x/2, screen.y/2)
+        rl.SetMousePosition(i32(screen.x/2), i32(screen.y/2))
     }
     else {
         rl.ShowCursor()
@@ -229,6 +233,8 @@ update :: proc() {
     }
     state.last_position = state.cam.position
     state.cam.target = state.cam.position + forward
+
+    update_code()
 }
 draw :: proc() {
     rl.ClearBackground(rl.BLACK)
@@ -260,8 +266,13 @@ draw :: proc() {
         }
     }
     rl.EndMode3D()
+    draw_code()
 }
 
+calc_window :: proc() {
+    screen = Vec2{f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}
+    center = screen/2
+}
 raycast :: proc() {
     center := Vec2{f32(screen.x/2), f32(screen.y/2)}
     ray := rl.GetScreenToWorldRay(center, state.cam)
