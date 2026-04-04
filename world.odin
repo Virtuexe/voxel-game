@@ -11,12 +11,13 @@ Block_Data :: struct #raw_union {
     Redstone,
 }
 is_block_stateless :: proc(block: Block) -> bool {
-    #partial switch block.type {
+    switch block.type {
     case .Air, .Dirt, .Stone:
         return true
-    case: 
+    case .Redstone: 
         return false
     }
+    return false
 }
 Redstone :: struct {
     rotation: Side,

@@ -2,7 +2,6 @@ package voxel_game
 
 import "core:fmt"
 import rl "vendor:raylib"
-import rlgl "vendor:raylib/rlgl"
 
 import "core:math"
 import "core:math/linalg"
@@ -18,9 +17,19 @@ center: [2]f32
 
 CHUNK :: [3]i32{16, 16, 16}
 
-block_mesh: rl.Mesh
 block_model: rl.Model
-block_textures: [Block_Type]rl.Texture2D
+//connections -> on/off
+redstone_render_texture: [(1<<len(Direction))*2]rl.RenderTexture2D
+block_cube_textures: [Block_Type]rl.Texture2D
+is_block_cube :: proc(block: Block_Type) -> bool {
+    switch block {
+    case .Dirt, .Stone:
+        return true
+    case .Air, .Redstone:
+        return false
+    }
+    return false
+}
 State :: struct {
     cam: rl.Camera3D,
     code: Code_State,
@@ -55,7 +64,7 @@ State :: struct {
 }
 state := State {
     cam = {
-        position = {0, 5, 0},
+        position = {0, 5, 5},
         up       = {0, 1, 0},
         fovy     = 90,
         projection = .PERSPECTIVE,
@@ -97,8 +106,8 @@ main :: proc() {
         rl.EndDrawing()
     }
 
-    for texture in block_textures {
-        if texture == {} do continue
+    for texture, block in block_cube_textures {
+        if !is_block_cube(block) do continue
         rl.UnloadTexture(texture)
     }
     rl.UnloadModel(block_model)
@@ -107,15 +116,13 @@ main :: proc() {
 
 init :: proc() {
     calc_window()
-    block_mesh = rl.GenMeshPlane(1, 1, 1, 1)
-    block_model = rl.LoadModelFromMesh(block_mesh)
 
-    block_textures = {
-        .Air = {},
+    init_block_model()
+    block_cube_textures = #partial {
         .Dirt = rl.LoadTexture("assets/dirt.png"),
         .Stone = rl.LoadTexture("assets/stone.png"),
-        .Redstone = {},
     }
+    gen_redstone_textures()
 
     world_init()
 
@@ -237,33 +244,95 @@ draw :: proc() {
     for block_key, i in world.block_keys {
         normal_block: Block
         ok: bool
-        if block_key == palette_get_block_key({.Air, {}}) do continue
         block := world.palette[block_key]
-        texture := block_textures[block.type]
-        rl.SetMaterialTexture(&block_model.materials[0], .ALBEDO, texture)
-        p := to_vec3(unflatten(i))
-        items := [?]struct{pos: Vec3, euler: Vec3} {
-            { {0, 0.5, 0},      {0, 0, 0} },          // Y
-            { {0, -0.5, 0},     {180, 0, 0} },        //-Y
-            { {0, -0, -0.5},    {-90, 0, 180} },      //-Z
-            { {0, -0, 0.5},     {90, 0, 0} },         // Z
-            { {0.5, -0, 0},     {0, 90, -90} },       // X
-            { {-0.5, -0, 0},    {0, -90, 90} },       //-X
+        if is_block_cube(block.type) {
+            texture := block_cube_textures[block.type]
+            rl.SetMaterialTexture(&block_model.materials[0], .ALBEDO, texture)
+            p := to_vec3(unflatten(i))
+            rl.DrawModel(block_model, p, 1, rl.WHITE)
         }
-        for item in items {
-            e := item.euler * rl.DEG2RAD
-            q := rl.QuaternionFromEuler(e.x, e.y, e.z)
-            block_model.transform = rl.QuaternionToMatrix(q)
-            color := rl.WHITE
-            rl.DrawModel(block_model, p + item.pos, 1, color)
-            if i == state.target_block {
-                white_glaze := rl.Color{255, 255, 255, 25}
-                rl.DrawCube(p, 1.001, 1.001, 1.001, white_glaze)
-            }
+        else if block.type == .Redstone {
+            //TODO
         }
     }
     rl.EndMode3D()
     draw_code()
+}
+
+UV_NORMAL :: [8]f32{ 0,0, 0,1, 1,1, 1,0 }
+UV_ROT_90 :: [8]f32{ 0,1, 1,1, 1,0, 0,0 }
+UV_ROT_180:: [8]f32{ 1,1, 1,0, 0,0, 0,1 }
+UV_ROT_270:: [8]f32{ 1,0, 0,0, 0,1, 1,1 }
+init_block_model :: proc() {
+    mesh := rl.GenMeshCube(1, 1, 1)
+    if mesh.texcoords == nil do return
+    coords := cast([^]f32)mesh.texcoords
+
+    set_face_uvs :: proc(c: [^]f32, face_idx: int, uv_data: [8]f32) {
+        for val, i in uv_data {
+            c[face_idx * 8 + i] = val
+        }
+    }
+    // FRONT
+    set_face_uvs(coords, 0, UV_ROT_90)  
+    // BACK
+    set_face_uvs(coords, 1, UV_ROT_180) 
+    // TOP
+    set_face_uvs(coords, 2, UV_NORMAL) 
+    // BOTTOM
+    set_face_uvs(coords, 3, UV_ROT_90)  
+    // RIGHT
+    set_face_uvs(coords, 4, UV_ROT_180)  
+    // LEFT
+    set_face_uvs(coords, 5, UV_ROT_90) 
+    // Sync CPU changes to GPU
+    rl.UpdateMeshBuffer(mesh, 1, mesh.texcoords, mesh.vertexCount * 2 * size_of(f32), 0)
+
+    block_model = rl.LoadModelFromMesh(mesh)
+}
+
+gen_redstone_textures :: proc() {
+    for &texture, state in redstone_render_texture {
+        is_on := (state & (1 << len(Direction))) != 0
+        connections: [Direction]bool
+        for dir, dir_index in Direction {
+            dir_index := uint(dir_index)
+            has_dir := (state & (1 << dir_index)) != 0
+            connections[dir] = has_dir
+        }
+        texture = get_redstone_textures(connections, is_on)
+    }
+}
+get_redstone_textures :: proc(connections: [Direction]bool, on: bool) -> rl.RenderTexture2D {
+    dot: rl.Texture2D
+    wire: rl.Texture2D
+    if on {
+        dot = rl.LoadTexture("assets/redstone_dot_on.png")
+        wire = rl.LoadTexture("assets/redstone_wire_on.png")
+    }
+    else {
+        dot = rl.LoadTexture("assets/redstone_dot_off.png")
+        wire = rl.LoadTexture("assets/redstone_dot_off.png")
+    }
+    result := rl.LoadRenderTexture(16, 16)
+    rec := rl.Rectangle{0,0,16,16}
+    rl.BeginTextureMode(result)
+    rl.DrawTextureRec(dot, rec, {0,0}, rl.WHITE)
+    for connection, dir in connections {
+        if connection == false do continue
+        rot: f32
+        switch dir {
+        case .Front: rot = 0
+        case .Back: rot = 180
+        case .Right: rot = 90
+        case .Left: rot = 270
+        }
+        rl.DrawTexturePro(wire, rec, {8,8,16,16}, {8, 8}, rot, rl.WHITE)
+    }
+    rl.EndTextureMode()
+    rl.UnloadTexture(dot)
+    rl.UnloadTexture(wire)
+    return result
 }
 
 get_delta :: proc() -> f32 {
