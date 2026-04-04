@@ -72,6 +72,15 @@ overlaps :: proc(a: Rec, b: Rec) -> bool {
 draw_rec :: proc(rec: Rec, color: Color) {
     rl.DrawRectangleRec({rec.pos.x, rec.pos.y, rec.size.x, rec.size.y}, color)
 }
+draw_rec_texture :: proc(rec: Rec, texture: rl.Texture, color := rl.WHITE) {
+    rl.DrawTexturePro(
+        texture, 
+        {0, 0, f32(texture.width), f32(texture.height)},
+        {rec.pos.x, rec.pos.y, rec.size.x, rec.size.y},
+        {}, {},
+        rl.WHITE
+    )
+}
 
 center :: proc(rec: Rec) -> Rec {
     return {rec.pos - rec.size/2, rec.size}

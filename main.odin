@@ -6,6 +6,8 @@ import rl "vendor:raylib"
 import "core:math"
 import "core:math/linalg"
 
+import ui "./raylib-ui"
+
 Vec2 :: rl.Vector2
 Vec3 :: rl.Vector3
 
@@ -19,6 +21,7 @@ CHUNK :: [3]i32{16, 16, 16}
 
 block_model: rl.Model
 //connections -> on/off
+crosshair_texture: rl.Texture2D
 redstone_render_texture: [(1<<len(Direction))*2]rl.RenderTexture2D
 block_cube_textures: [Block_Type]rl.Texture2D
 is_block_cube :: proc(block: Block_Type) -> bool {
@@ -32,6 +35,7 @@ is_block_cube :: proc(block: Block_Type) -> bool {
 }
 State :: struct {
     cam: rl.Camera3D,
+    ui_cam: rl.Camera2D,
     code: Code_State,
     world: World_State,
     //MOVEMENT & LOOK
@@ -69,6 +73,7 @@ state := State {
         fovy     = 90,
         projection = .PERSPECTIVE,
     },
+    ui_cam = {zoom=1},
     //MOVEMENT & LOOK
     //rulles
     move_speed = 4.3,
@@ -106,9 +111,13 @@ main :: proc() {
         rl.EndDrawing()
     }
 
+    rl.UnloadTexture(crosshair_texture)
     for texture, block in block_cube_textures {
         if !is_block_cube(block) do continue
         rl.UnloadTexture(texture)
+    }
+    for texture in redstone_render_texture {
+        rl.UnloadRenderTexture(texture)
     }
     rl.UnloadModel(block_model)
     rl.CloseWindow()
@@ -118,6 +127,7 @@ init :: proc() {
     calc_window()
 
     init_block_model()
+    crosshair_texture = rl.LoadTexture("assets/crosshair.png")
     block_cube_textures = #partial {
         .Dirt = rl.LoadTexture("assets/dirt.png"),
         .Stone = rl.LoadTexture("assets/stone.png"),
@@ -240,7 +250,7 @@ update :: proc() {
 draw :: proc() {
     rl.ClearBackground(rl.BLACK)
     rl.BeginMode3D(state.cam)
-    
+    //3D
     for block_key, i in world.block_keys {
         normal_block: Block
         ok: bool
@@ -255,7 +265,21 @@ draw :: proc() {
             //TODO
         }
     }
+    if block := state.target_block; block != -1 {
+        pos := to_vec3(unflatten(block))
+        rl.DrawCube(pos, 1.001, 1.001, 1.001, rl.Color{255, 255, 255, 100})
+    }
     rl.EndMode3D()
+
+    //UI
+    rl.BeginMode2D(state.ui_cam)
+    
+    crosshair := ui.Rec{{}, ui.vmin(screen)/15}
+    crosshair.pos = center-crosshair.size/2
+    ui.draw_rec_texture(crosshair, crosshair_texture)
+
+    rl.EndMode2D()
+
     draw_code()
 }
 
