@@ -8,7 +8,7 @@ Block_Type :: enum {
     Redstone,
 }
 Block_Data :: struct #raw_union {
-    Redstone,
+    redstone: Redstone,
 }
 is_block_stateless :: proc(block: Block) -> bool {
     switch block.type {
@@ -20,6 +20,7 @@ is_block_stateless :: proc(block: Block) -> bool {
     return false
 }
 Redstone :: struct {
+    on: bool,
     rotation: Side,
     connections: [Direction]bool,
 }
@@ -33,8 +34,8 @@ world: ^World_State
 world_init :: proc() {
     world = &state.world
     world.palette = init_palette()
-    stone := palette_provide_block({.Stone, {}})
-    dirt := palette_provide_block({.Dirt, {}})
+    stone := palette_provide_block_key({.Stone, {}})
+    dirt := palette_provide_block_key({.Dirt, {}})
     for i in 0..<16*16 {
         x: i32 = i32(i/16)
         z: i32 = i32(i%16)
@@ -49,7 +50,7 @@ init_palette :: proc() -> [dynamic]Block {
     return palette
 }
 //Returns the block id from palette. If the block is not present it will get created.
-palette_provide_block :: proc(block: Block) -> int {
+palette_provide_block_key :: proc(block: Block) -> int {
     for search_block, id in world.palette {
         if search_block == block {
             return id

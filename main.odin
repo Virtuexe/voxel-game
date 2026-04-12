@@ -2,6 +2,7 @@ package voxel_game
 
 import "core:fmt"
 import rl "vendor:raylib"
+import rlgl "vendor:raylib/rlgl"
 
 import "core:math"
 import "core:math/linalg"
@@ -13,6 +14,31 @@ Vec3 :: rl.Vector3
 
 Side :: enum{Front, Back, Right, Left, Up, Down}
 Direction :: enum{Front, Back, Right, Left}
+vec3_to_side :: proc(vec: Vec3) -> Side {
+    if abs(vec.x) > abs(vec.y) && abs(vec.x) > abs(vec.z) {
+        if vec.x >= 0 do return .Right
+        else do return .Left
+    }
+    else if abs(vec.y) > abs(vec.z) {
+        if vec.y >= 0 do return .Up
+        else do return .Down
+    }
+    else {
+        if vec.z > 0 do return .Back //-Z
+        else do return .Back
+    }
+}
+side_to_vec3 :: proc(side: Side) -> Vec3 {
+    switch side {
+    case .Front: return {0, 0, -1} //-z
+    case .Back: return {0, 0, 1} //-z
+    case .Right: return {1, 0, 0}
+    case .Left: return {-1, 0, 0}
+    case .Up: return {0, 1, 0}
+    case .Down: return {0, -1, 0}
+    }
+    return {}
+}
 
 screen: [2]f32
 center: [2]f32
@@ -20,6 +46,7 @@ center: [2]f32
 CHUNK :: [3]i32{16, 16, 16}
 
 block_model: rl.Model
+decal_model: rl.Model
 //connections -> on/off
 crosshair_texture: rl.Texture2D
 redstone_render_texture: [(1<<len(Direction))*2]rl.RenderTexture2D
@@ -31,7 +58,23 @@ is_block_cube :: proc(block: Block_Type) -> bool {
     case .Air, .Redstone:
         return false
     }
-    return false
+    return {}
+}
+is_block_decal :: proc(block: Block_Type) -> bool {
+    #partial switch block {
+    case .Redstone:
+        return true
+    case:
+        return false
+    }
+}
+is_block_transparent :: proc(block: Block_Type) -> bool {
+    #partial switch block {
+    case .Redstone:
+        return true
+    case:
+        return false
+    }
 }
 State :: struct {
     cam: rl.Camera3D,
@@ -61,6 +104,7 @@ State :: struct {
     block_in_hand: Block,
     target_block: int,
     place_block: int,
+    place_block_direction: Direction,
     //COLLISION
     collider_size: Vec3,
     collider_offset: Vec3,
@@ -127,6 +171,7 @@ init :: proc() {
     calc_window()
 
     init_block_model()
+    init_decal_model()
     crosshair_texture = rl.LoadTexture("assets/crosshair.png")
     block_cube_textures = #partial {
         .Dirt = rl.LoadTexture("assets/dirt.png"),
@@ -192,16 +237,19 @@ update :: proc() {
         if rl.IsKeyDown(.TWO) {
             state.block_in_hand = {.Stone, {}}
         }
+        if rl.IsKeyDown(.THREE) {
+            state.block_in_hand = {.Redstone, {redstone={true, .Up, {.Left=true, .Right=true, .Front=true, .Back=true}}}}
+        }
     }
 
     if state.use_mouse_input {
         if rl.IsMouseButtonPressed(.LEFT) && state.target_block != -1 {
-            world.block_keys[state.target_block] = palette_get_block_key({.Air, {}})
+            world.block_keys[state.target_block] = palette_provide_block_key({.Air, {}})
             raycast()
         }
         if rl.IsMouseButtonPressed(.RIGHT) && state.target_block != -1 {
         if !is_overlapping(state.cam.position, unflatten(state.place_block), state.block_in_hand) {
-                world.block_keys[state.place_block] = palette_get_block_key(state.block_in_hand)
+                world.block_keys[state.place_block] = palette_provide_block_key(state.block_in_hand)
                 raycast()
         }}
     }
@@ -250,21 +298,30 @@ update :: proc() {
 draw :: proc() {
     rl.ClearBackground(rl.BLACK)
     rl.BeginMode3D(state.cam)
+    rl.BeginBlendMode(.ALPHA)
+
     //3D
+    for do_transparent in ([]bool{false, true}) {
     for block_key, i in world.block_keys {
-        normal_block: Block
-        ok: bool
         block := world.palette[block_key]
+        if do_transparent == !is_block_transparent(block.type) do continue
+
+        p := to_vec3(unflatten(i))
         if is_block_cube(block.type) {
             texture := block_cube_textures[block.type]
             rl.SetMaterialTexture(&block_model.materials[0], .ALBEDO, texture)
-            p := to_vec3(unflatten(i))
             rl.DrawModel(block_model, p, 1, rl.WHITE)
         }
-        else if block.type == .Redstone {
-            //TODO
+        else if is_block_decal(block.type) {
+            if block.type == .Redstone {
+                redstone := block.data.redstone
+                texture := redstone_render_texture[17]
+                rl.SetMaterialTexture(&decal_model.materials[0], .ALBEDO, texture.texture)
+            }
+            rl.DrawModel(decal_model, p - {0,.499,0}, 1, rl.WHITE)
         }
-    }
+    }}
+    
     if block := state.target_block; block != -1 {
         pos := to_vec3(unflatten(block))
         rl.DrawCube(pos, 1.001, 1.001, 1.001, rl.Color{255, 255, 255, 100})
@@ -287,16 +344,15 @@ UV_NORMAL :: [8]f32{ 0,0, 0,1, 1,1, 1,0 }
 UV_ROT_90 :: [8]f32{ 0,1, 1,1, 1,0, 0,0 }
 UV_ROT_180:: [8]f32{ 1,1, 1,0, 0,0, 0,1 }
 UV_ROT_270:: [8]f32{ 1,0, 0,0, 0,1, 1,1 }
+set_face_uvs :: proc(c: [^]f32, face_idx: int, uv_data: [8]f32) {
+    for val, i in uv_data {
+        c[face_idx * 8 + i] = val
+    }
+}
 init_block_model :: proc() {
     mesh := rl.GenMeshCube(1, 1, 1)
-    if mesh.texcoords == nil do return
     coords := cast([^]f32)mesh.texcoords
 
-    set_face_uvs :: proc(c: [^]f32, face_idx: int, uv_data: [8]f32) {
-        for val, i in uv_data {
-            c[face_idx * 8 + i] = val
-        }
-    }
     // FRONT
     set_face_uvs(coords, 0, UV_ROT_90)  
     // BACK
@@ -314,6 +370,9 @@ init_block_model :: proc() {
 
     block_model = rl.LoadModelFromMesh(mesh)
 }
+init_decal_model :: proc() {
+    decal_model = rl.LoadModelFromMesh(rl.GenMeshPlane(1, 1, 1, 1))
+}
 
 gen_redstone_textures :: proc() {
     for &texture, state in redstone_render_texture {
@@ -324,10 +383,10 @@ gen_redstone_textures :: proc() {
             has_dir := (state & (1 << dir_index)) != 0
             connections[dir] = has_dir
         }
-        texture = get_redstone_textures(connections, is_on)
+        texture = gen_redstone_texture(connections, is_on)
     }
 }
-get_redstone_textures :: proc(connections: [Direction]bool, on: bool) -> rl.RenderTexture2D {
+gen_redstone_texture :: proc(connections: [Direction]bool, on: bool) -> rl.RenderTexture2D {
     dot: rl.Texture2D
     wire: rl.Texture2D
     if on {
@@ -366,18 +425,21 @@ calc_window :: proc() {
     screen = Vec2{f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}
     center = screen/2
 }
+
+closest_hit: rl.RayCollision
 raycast :: proc() {
+    //TODO closest hit normal can hit face diagonally
     center := Vec2{f32(screen.x/2), f32(screen.y/2)}
     ray := rl.GetScreenToWorldRay(center, state.cam)
 
-    closest_hit := rl.RayCollision{ distance = 5.0 }
+    closest_hit = rl.RayCollision{ distance = 5.0 }
     state.target_block = -1
 
     for block, i in world.block_keys {
-        pos := to_vec3(unflatten(i))
+        block_pos := to_vec3(unflatten(i))
         if block == palette_get_block_key({.Air,{}}) do continue
-        min_box := pos - rl.Vector3{0.5, 0.5, 0.5} 
-        max_box := pos + rl.Vector3{0.5, 0.5, 0.5}
+        min_box := block_pos - rl.Vector3{0.5, 0.5, 0.5}
+        max_box := block_pos + rl.Vector3{0.5, 0.5, 0.5}
         bbox := rl.BoundingBox{min_box, max_box}
 
         hit := rl.GetRayCollisionBox(ray, bbox)
@@ -385,9 +447,34 @@ raycast :: proc() {
         if hit.hit && hit.distance < closest_hit.distance {
             closest_hit = hit
             state.target_block = i
-            state.place_block = flatten(from_vec3(pos + closest_hit.normal))
+            state.place_block = flatten(from_vec3(block_pos + closest_hit.normal))
         }
     }
+    if state.target_block != -1 {
+        pos := to_vec3(unflatten(state.target_block))
+        local_hit := closest_hit.point - pos
+        normal_dir := vec3_to_side(closest_hit.normal)
+
+        face_pos: Vec2
+        switch normal_dir {
+        case .Front, .Back:
+            face_pos = local_hit.xy
+        case .Right, .Left:
+            face_pos = local_hit.zy
+        case .Up, .Down:
+            face_pos = local_hit.xz
+        }
+        if abs(face_pos.x) >= abs(face_pos.y) {
+            if face_pos.x >= 0 do state.place_block_direction = .Right
+            else do state.place_block_direction = .Left
+        }
+        else {
+            if face_pos.y >= 0 do state.place_block_direction = .Front
+            else do state.place_block_direction = .Back
+        }
+    }
+    
+
 }
 get_wasd_input :: proc(forward, right, up: Vec3) -> (wasd:Vec3) {
     Key_Vec :: struct{key: rl.KeyboardKey, pos: Vec3}
