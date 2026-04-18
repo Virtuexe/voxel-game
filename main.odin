@@ -1,5 +1,6 @@
 package voxel_game
 
+import "core:strings"
 import "core:fmt"
 import rl "vendor:raylib"
 import rlgl "vendor:raylib/rlgl"
@@ -12,30 +13,98 @@ import ui "./raylib-ui"
 Vec2 :: rl.Vector2
 Vec3 :: rl.Vector3
 
-Side :: enum{Front, Back, Right, Left, Up, Down}
-Direction :: enum{Front, Back, Right, Left}
-vec3_to_side :: proc(vec: Vec3) -> Side {
-    if abs(vec.x) > abs(vec.y) && abs(vec.x) > abs(vec.z) {
-        if vec.x >= 0 do return .Right
-        else do return .Left
+Face :: enum{Front, Back, Right, Left, Up, Down}
+Direction :: enum{Up, Down, Right, Left}
+fix_normal :: proc(vec: Vec3) -> (res: Vec3) {
+    biggest_i: int
+    biggest: f32
+    for n, i in vec {
+        if abs(n) > biggest {
+            biggest = abs(n)
+            biggest_i = i
+        }
     }
-    else if abs(vec.y) > abs(vec.z) {
-        if vec.y >= 0 do return .Up
-        else do return .Down
+    for &n, i in res {
+        if i == biggest_i {
+            if vec[i] < 0 do n = -1
+            else do n = 1
+            break
+        }
     }
-    else {
-        if vec.z > 0 do return .Back //-Z
-        else do return .Back
-    }
+    return
 }
-side_to_vec3 :: proc(side: Side) -> Vec3 {
+normal_to_face :: proc(vec: Vec3) -> Face {
+    switch vec {
+    case {0, 0, 1}: return .Front
+    case {0, 0, -1}: return .Back
+    case {1, 0, 0}: return .Right
+    case {-1, 0, 0}: return .Left
+    case {0, 1, 0}: return .Up
+    case {0, -1, 0}: return .Down
+    }
+    return {}
+}
+face_to_normal :: proc(side: Face) -> Vec3 {
     switch side {
-    case .Front: return {0, 0, -1} //-z
-    case .Back: return {0, 0, 1} //-z
+    case .Front: return {0, 0, 1} //-z
+    case .Back: return {0, 0, -1} //-z
     case .Right: return {1, 0, 0}
     case .Left: return {-1, 0, 0}
     case .Up: return {0, 1, 0}
     case .Down: return {0, -1, 0}
+    }
+    return {}
+}
+ignore_normal :: proc(ignore_normal, normal: Vec3) -> Vec2 {
+    switch ignore_normal {
+    case {0,0,1}:
+        return {normal.x,-normal.y}
+    case {0,0,-1}:
+        return {-normal.x,-normal.y}
+    case {0,1,0}:
+        return {normal.x,normal.z}
+    case {0,-1,0}:
+        return {normal.x,-normal.z}
+    case {1,0,0}:
+        return {-normal.z,-normal.y}
+    case {-1,0,0}:
+        return {normal.z,-normal.y}
+    }
+    return {}
+}
+restore_normal :: proc(ignore_normal: Vec3, local_dir: Vec2) -> Vec3 {
+    switch ignore_normal {
+    case {0, 0, 1}:
+        return {local_dir.x, -local_dir.y, 0}
+    case {0, 0, -1}:
+        return {-local_dir.x, -local_dir.y, 0}
+    case {0, 1, 0}:
+        return {local_dir.x, 0, local_dir.y}
+    case {0, -1, 0}:
+        return {local_dir.x, 0, -local_dir.y}
+    case {1, 0, 0}:
+        return {0, -local_dir.y, -local_dir.x}
+    case {-1, 0, 0}:
+        return {0, -local_dir.y, local_dir.x}
+    }
+    
+    return {}
+}
+normal_to_direction :: proc(normal: Vec2) -> Direction {
+    switch normal{
+    case {0,-1}: return .Up
+    case {0,1}: return .Down
+    case {1,0}: return .Right
+    case {-1,0}: return .Left
+    }
+    return {}
+}
+direction_to_normal :: proc(dir: Direction) -> Vec2 {
+    switch dir{
+    case .Up: return {0,-1}
+    case .Down: return {0,1}
+    case .Right: return {1,0}
+    case .Left: return {-1,0}
     }
     return {}
 }
@@ -45,43 +114,14 @@ center: [2]f32
 
 CHUNK :: [3]i32{16, 16, 16}
 
-block_model: rl.Model
-decal_model: rl.Model
-//connections -> on/off
 crosshair_texture: rl.Texture2D
-redstone_render_texture: [(1<<len(Direction))*2]rl.RenderTexture2D
-block_cube_textures: [Block_Type]rl.Texture2D
-is_block_cube :: proc(block: Block_Type) -> bool {
-    switch block {
-    case .Dirt, .Stone:
-        return true
-    case .Air, .Redstone:
-        return false
-    }
-    return {}
-}
-is_block_decal :: proc(block: Block_Type) -> bool {
-    #partial switch block {
-    case .Redstone:
-        return true
-    case:
-        return false
-    }
-}
-is_block_transparent :: proc(block: Block_Type) -> bool {
-    #partial switch block {
-    case .Redstone:
-        return true
-    case:
-        return false
-    }
-}
 State :: struct {
     cam: rl.Camera3D,
     ui_cam: rl.Camera2D,
     code: Code_State,
     world: World_State,
     //MOVEMENT & LOOK
+    forward: Vec3,
     //rules
     apply_gravity: bool,
     is_flying: bool,
@@ -100,10 +140,16 @@ State :: struct {
     use_key_input: bool,
     use_mouse_input: bool,
     mouse_lock: bool,
+    show_debug: bool,
     //INTERACTION
     block_in_hand: Block,
     target_block: int,
-    place_block: int,
+    place_block: Vec3,
+    place_block_index: int,
+    place_block_face_normal: Vec3,
+    place_block_direction_normal: Vec3,
+    place_block_direction_normal_2d: Vec2,
+    place_block_face: Face,
     place_block_direction: Direction,
     //COLLISION
     collider_size: Vec3,
@@ -157,7 +203,7 @@ main :: proc() {
 
     rl.UnloadTexture(crosshair_texture)
     for texture, block in block_cube_textures {
-        if !is_block_cube(block) do continue
+        if !is_texture_cube(block) do continue
         rl.UnloadTexture(texture)
     }
     for texture in redstone_render_texture {
@@ -174,7 +220,7 @@ init :: proc() {
     init_decal_model()
     crosshair_texture = rl.LoadTexture("assets/crosshair.png")
     block_cube_textures = #partial {
-        .Dirt = rl.LoadTexture("assets/dirt.png"),
+        .Dirt = rl.LoadTexture("assets/test.png"),
         .Stone = rl.LoadTexture("assets/stone.png"),
     }
     gen_redstone_textures()
@@ -192,7 +238,7 @@ init :: proc() {
 update :: proc() {
     calc_window()
     delta := get_delta()
-    //ESC
+    //ESC+
     state.mouse_lock = true
     state.use_key_input = true
     state.use_mouse_input = true
@@ -202,6 +248,9 @@ update :: proc() {
     if state.in_menu || state.code.in_code {
         state.mouse_lock = false
         state.use_mouse_input = false
+    }
+    if rl.IsKeyPressed(.F3) {
+        state.show_debug = !state.show_debug
     }
     //LOOK
     if state.mouse_lock {
@@ -227,6 +276,7 @@ update :: proc() {
     else {
         rl.ShowCursor()
     }
+    state.forward = forward
     //RAYCAST
     raycast()
     //INTERACTION
@@ -238,7 +288,7 @@ update :: proc() {
             state.block_in_hand = {.Stone, {}}
         }
         if rl.IsKeyDown(.THREE) {
-            state.block_in_hand = {.Redstone, {redstone={true, .Up, {.Left=true, .Right=true, .Front=true, .Back=true}}}}
+            state.block_in_hand = {.Redstone, {}}
         }
     }
 
@@ -248,10 +298,8 @@ update :: proc() {
             raycast()
         }
         if rl.IsMouseButtonPressed(.RIGHT) && state.target_block != -1 {
-        if !is_overlapping(state.cam.position, unflatten(state.place_block), state.block_in_hand) {
-                world.block_keys[state.place_block] = palette_provide_block_key(state.block_in_hand)
-                raycast()
-        }}
+            block_place()
+        }
     }
     //MOVEMENT
     move_speed := state.move_speed
@@ -304,18 +352,18 @@ draw :: proc() {
     for do_transparent in ([]bool{false, true}) {
     for block_key, i in world.block_keys {
         block := world.palette[block_key]
-        if do_transparent == !is_block_transparent(block.type) do continue
+        if do_transparent == !is_texture_transparent(block.type) do continue
 
         p := to_vec3(unflatten(i))
-        if is_block_cube(block.type) {
+        if is_texture_cube(block.type) {
             texture := block_cube_textures[block.type]
             rl.SetMaterialTexture(&block_model.materials[0], .ALBEDO, texture)
             rl.DrawModel(block_model, p, 1, rl.WHITE)
         }
-        else if is_block_decal(block.type) {
+        else if is_texture_decal(block.type) {
             if block.type == .Redstone {
                 redstone := block.data.redstone
-                texture := redstone_render_texture[17]
+                texture := get_redstone_texture(redstone.on, redstone.connections)
                 rl.SetMaterialTexture(&decal_model.materials[0], .ALBEDO, texture.texture)
             }
             rl.DrawModel(decal_model, p - {0,.499,0}, 1, rl.WHITE)
@@ -326,14 +374,26 @@ draw :: proc() {
         pos := to_vec3(unflatten(block))
         rl.DrawCube(pos, 1.001, 1.001, 1.001, rl.Color{255, 255, 255, 100})
     }
+    if state.show_debug {
+        draw_xyz()
+    }
     rl.EndMode3D()
 
     //UI
     rl.BeginMode2D(state.ui_cam)
     
-    crosshair := ui.Rec{{}, ui.vmin(screen)/15}
-    crosshair.pos = center-crosshair.size/2
-    ui.draw_rec_texture(crosshair, crosshair_texture)
+    if !state.show_debug {
+        crosshair := ui.Rec{{}, ui.vmin(screen)/15}
+        crosshair.pos = center-crosshair.size/2
+        ui.draw_rec_texture(crosshair, crosshair_texture)
+    }
+    else {
+        text := fmt.aprint(
+            "position: ", state.cam.position, "\n",
+            allocator = context.temp_allocator
+        )
+        rl.DrawText(strings.clone_to_cstring(text, context.temp_allocator), 0, 0, i32(ui.vmin(screen)/30), rl.WHITE)
+    }
 
     rl.EndMode2D()
 
@@ -383,10 +443,10 @@ gen_redstone_textures :: proc() {
             has_dir := (state & (1 << dir_index)) != 0
             connections[dir] = has_dir
         }
-        texture = gen_redstone_texture(connections, is_on)
+        texture = gen_redstone_texture(is_on, connections)
     }
 }
-gen_redstone_texture :: proc(connections: [Direction]bool, on: bool) -> rl.RenderTexture2D {
+gen_redstone_texture :: proc(on: bool, connections: [Direction]bool) -> rl.RenderTexture2D {
     dot: rl.Texture2D
     wire: rl.Texture2D
     if on {
@@ -405,8 +465,8 @@ gen_redstone_texture :: proc(connections: [Direction]bool, on: bool) -> rl.Rende
         if connection == false do continue
         rot: f32
         switch dir {
-        case .Front: rot = 0
-        case .Back: rot = 180
+        case .Up: rot = 180
+        case .Down: rot = 0
         case .Right: rot = 90
         case .Left: rot = 270
         }
@@ -416,6 +476,17 @@ gen_redstone_texture :: proc(connections: [Direction]bool, on: bool) -> rl.Rende
     rl.UnloadTexture(dot)
     rl.UnloadTexture(wire)
     return result
+}
+get_redstone_texture :: proc(on: bool, connections: [Direction]bool) -> rl.RenderTexture2D {
+    state := int(on) * (1 << len(Direction))
+    
+    for connected, dir in connections {
+        if connected {
+            state |= (1 << uint(dir))
+        }
+    }
+    
+    return redstone_render_texture[state]
 }
 
 get_delta :: proc() -> f32 {
@@ -447,34 +518,31 @@ raycast :: proc() {
         if hit.hit && hit.distance < closest_hit.distance {
             closest_hit = hit
             state.target_block = i
-            state.place_block = flatten(from_vec3(block_pos + closest_hit.normal))
+            state.place_block = block_pos + closest_hit.normal
+            state.place_block_index = flatten(from_vec3(state.place_block))
         }
     }
     if state.target_block != -1 {
         pos := to_vec3(unflatten(state.target_block))
+        normal := fix_normal(closest_hit.normal)
         local_hit := closest_hit.point - pos
-        normal_dir := vec3_to_side(closest_hit.normal)
+        face_hit := local_hit - local_hit*normal*normal
+        face_normal := fix_normal(face_hit)
 
-        face_pos: Vec2
-        switch normal_dir {
-        case .Front, .Back:
-            face_pos = local_hit.xy
-        case .Right, .Left:
-            face_pos = local_hit.zy
-        case .Up, .Down:
-            face_pos = local_hit.xz
-        }
-        if abs(face_pos.x) >= abs(face_pos.y) {
-            if face_pos.x >= 0 do state.place_block_direction = .Right
-            else do state.place_block_direction = .Left
-        }
-        else {
-            if face_pos.y >= 0 do state.place_block_direction = .Front
-            else do state.place_block_direction = .Back
-        }
+        state.place_block_face_normal = normal
+        state.place_block_face = normal_to_face(normal)
+        state.place_block_direction_normal = face_normal
+        state.place_block_direction_normal_2d = ignore_normal(normal, face_normal)
+        state.place_block_direction = normal_to_direction(state.place_block_direction_normal_2d)
     }
+}
+draw_xyz :: proc() {
+    position := state.cam.target - state.forward*0.9
+    length: f32 = 0.02
     
-
+    rl.DrawLine3D(position, position+length*Vec3{1,0,0}, rl.RED)
+    rl.DrawLine3D(position, position+length*Vec3{0,1,0}, rl.GREEN)
+    rl.DrawLine3D(position, position+length*Vec3{0,0,1}, rl.BLUE)
 }
 get_wasd_input :: proc(forward, right, up: Vec3) -> (wasd:Vec3) {
     Key_Vec :: struct{key: rl.KeyboardKey, pos: Vec3}

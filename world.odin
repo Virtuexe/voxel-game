@@ -1,29 +1,4 @@
 package voxel_game
-Block :: struct {
-    type: Block_Type,
-    data: Block_Data,
-}
-Block_Type :: enum {
-    Air, Dirt, Stone,
-    Redstone,
-}
-Block_Data :: struct #raw_union {
-    redstone: Redstone,
-}
-is_block_stateless :: proc(block: Block) -> bool {
-    switch block.type {
-    case .Air, .Dirt, .Stone:
-        return true
-    case .Redstone: 
-        return false
-    }
-    return false
-}
-Redstone :: struct {
-    on: bool,
-    rotation: Side,
-    connections: [Direction]bool,
-}
 
 World_State :: struct {
     palette: [dynamic]Block,
