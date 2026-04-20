@@ -1,0 +1,33 @@
+package voxel_game
+
+import rl "vendor:raylib"
+import vcode "./vcode"
+
+Code_State :: struct {
+    in_code: bool,
+    ctx: vcode.Context,
+}
+
+init_code :: proc() {
+    vcode.init(&state.code.ctx)
+}
+
+update_code :: proc() {
+    if rl.IsKeyPressed(.C) {
+        state.code.in_code = !state.code.in_code
+        if state.code.in_code {
+            rl.ShowCursor()
+            rl.SetMousePosition(i32(screen.x/2), i32(screen.y/2))
+        }
+    }
+    
+    if !state.code.in_code do return
+    
+    vcode.update(&state.code.ctx, screen)
+}
+
+draw_code :: proc() {
+    if !state.code.in_code do return
+    
+    vcode.draw(&state.code.ctx, screen)
+}
