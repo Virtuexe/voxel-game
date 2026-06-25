@@ -220,7 +220,7 @@ init :: proc() {
     init_decal_model()
     crosshair_texture = rl.LoadTexture("assets/crosshair.png")
     block_cube_textures = #partial {
-        .Dirt = rl.LoadTexture("assets/test.png"),
+        .Dirt = rl.LoadTexture("assets/dirt.png"),
         .Stone = rl.LoadTexture("assets/stone.png"),
     }
     gen_redstone_textures()
@@ -490,7 +490,7 @@ get_redstone_texture :: proc(on: bool, connections: [Direction]bool) -> rl.Rende
 }
 
 get_delta :: proc() -> f32 {
-    return min(0.2, rl.GetFrameTime())
+    return min(0.14, rl.GetFrameTime())
 }
 calc_window :: proc() {
     screen = Vec2{f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}
