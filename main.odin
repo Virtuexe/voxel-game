@@ -138,7 +138,7 @@ update :: proc() {
 
     if state.use_mouse_input {
         if rl.IsMouseButtonPressed(.LEFT) && state.has_target_block {
-            world_set_block(state.target_block, palette_provide_block_key({.Air, {}}))
+            world_set_block(state.target_block, Block{.Air, {}})
             raycast()
         }
         if rl.IsMouseButtonPressed(.RIGHT) && state.has_target_block {
@@ -202,7 +202,7 @@ draw :: proc() {
         for c_pos, chunk in world.chunks {
             for block_key, i in chunk.block_keys {
                 if block_key == 0 do continue
-                block := world.palette[block_key]
+                block := chunk.palette[block_key]
                 info := block_infos[block.type]
                 if do_transparent != (.TEXTURE_TRANSPARENT in info.flags) do continue
 
@@ -239,8 +239,7 @@ draw :: proc() {
     
     if state.has_target_block {
         pos := to_vec3(state.target_block)
-        block_key := world_get_block(state.target_block)
-        block := world.palette[block_key]
+        block := world_get_block(state.target_block)
         info := block_infos[block.type]
         
         if info.model != .Decal {
@@ -304,12 +303,12 @@ raycast :: proc() {
         for block_key, i in chunk.block_keys {
             if block_key == 0 do continue
             l_pos := unflatten(i)
-            global_pos := [3]i32{c_pos.x * CHUNK.x + l_pos.x, c_pos.y * CHUNK.y + l_pos.y, c_pos.z * CHUNK.z + l_pos.z}
+            global_pos := get_global_pos(c_pos, l_pos)
             block_pos := to_vec3(global_pos)
             
             min_box := block_pos - rl.Vector3{0.5, 0.5, 0.5}
             max_box := block_pos + rl.Vector3{0.5, 0.5, 0.5}
-            if block_infos[world.palette[block_key].type].model == .Slab {
+            if block_infos[chunk.palette[block_key].type].model == .Slab {
                 max_box.y -= 0.5
             }
             bbox := rl.BoundingBox{min_box, max_box}
@@ -393,6 +392,6 @@ is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block) -> bool {
     return overlap_x > 0.001 && overlap_y > 0.001 && overlap_z > 0.001
 }
 is_overlapping_at :: proc(player: Vec3, global_pos: [3]i32) -> bool {
-    return is_overlapping(player, global_pos, world.palette[world_get_block(global_pos)])
+    return is_overlapping(player, global_pos, world_get_block(global_pos))
 }
 

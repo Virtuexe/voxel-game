@@ -116,7 +116,7 @@ block_place :: proc() {
     raycast()
 }
 place_base_block :: proc(block: Block) {
-    world_set_block(state.place_block_index, palette_provide_block_key(block))
+    world_set_block(state.place_block_index, block)
 }
 place_redstone :: proc() {
     pos1 := state.place_block
@@ -128,9 +128,9 @@ place_redstone :: proc() {
 
     redstone := Block{.Redstone, {redstone={true, state.place_block_face, {}}}}
     redstone.data.redstone.connections[dir1] = true
-    world_set_block(pos1_i, palette_provide_block_key(redstone))
+    world_set_block(pos1_i, redstone)
 
     redstone2 := Block{.Redstone, {redstone={true, state.place_block_face, {}}}}
     redstone2.data.redstone.connections[dir2] = true
-    world_set_block(pos2_i, palette_provide_block_key(redstone2))
+    world_set_block(pos2_i, redstone2)
 }

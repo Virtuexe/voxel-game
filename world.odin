@@ -1,22 +1,24 @@
 package voxel_game
 
 World_State :: struct {
-    palette: [dynamic]Block,
     chunks: map[[3]i32]^Chunk,
 }
 Chunk :: struct {
+    palette: [dynamic]Block,
     block_keys: [16*16*16]int,
 }
 world: ^World_State
 
 world_init :: proc() {
     world = &state.world
-    world.palette = init_palette()
     world.chunks = make(map[[3]i32]^Chunk)
-    stone := palette_provide_block_key({.Stone, {}})
-    dirt := palette_provide_block_key({.Dirt, {}})
     
     chunk := new(Chunk)
+    chunk.palette = make([dynamic]Block)
+    append(&chunk.palette, Block{.Air, {}})
+    stone := chunk_provide_block_key(chunk, {.Stone, {}})
+    dirt := chunk_provide_block_key(chunk, {.Dirt, {}})
+    
     world.chunks[{0, 0, 0}] = chunk
     for i in 0..<16*16 {
         x: i32 = i32(i/16)
@@ -26,25 +28,20 @@ world_init :: proc() {
     }
 }
 
-init_palette :: proc() -> [dynamic]Block {
-    palette := make([dynamic]Block)
-    append(&palette, Block{.Air, {}})
-    return palette
-}
 //Returns the block id from palette. If the block is not present it will get created.
-palette_provide_block_key :: proc(block: Block) -> int {
-    for search_block, id in world.palette {
+chunk_provide_block_key :: proc(chunk: ^Chunk, block: Block) -> int {
+    for search_block, id in chunk.palette {
         if search_block == block {
             return id
         }
     }
-    append(&world.palette, block)
-    return len(world.palette)-1
+    append(&chunk.palette, block)
+    return len(chunk.palette)-1
 }
 
 //Return the block id from palette -1 if not found.
-palette_get_block_key :: proc(block: Block) -> int {
-    for search_block, id in world.palette {
+chunk_get_block_key :: proc(chunk: ^Chunk, block: Block) -> int {
+    for search_block, id in chunk.palette {
         if search_block == block {
             return id
         }
@@ -52,20 +49,27 @@ palette_get_block_key :: proc(block: Block) -> int {
     return -1
 }
 
-world_get_block :: proc(pos: [3]i32) -> int {
+world_get_block :: proc(pos: [3]i32) -> Block {
     c_pos := get_chunk_pos(pos)
     if c_pos in world.chunks {
+        chunk := world.chunks[c_pos]
         l_pos := get_local_pos(pos)
-        return world.chunks[c_pos].block_keys[flatten(l_pos)]
+        block_key := chunk.block_keys[flatten(l_pos)]
+        return chunk.palette[block_key]
     }
-    return 0
+    return {.Air, {}}
 }
 
-world_set_block :: proc(pos: [3]i32, block_key: int) {
+world_set_block :: proc(pos: [3]i32, block: Block) {
     c_pos := get_chunk_pos(pos)
     if c_pos not_in world.chunks {
-        world.chunks[c_pos] = new(Chunk)
+        chunk := new(Chunk)
+        chunk.palette = make([dynamic]Block)
+        append(&chunk.palette, Block{.Air, {}})
+        world.chunks[c_pos] = chunk
     }
+    chunk := world.chunks[c_pos]
     l_pos := get_local_pos(pos)
-    world.chunks[c_pos].block_keys[flatten(l_pos)] = block_key
+    block_key := chunk_provide_block_key(chunk, block)
+    chunk.block_keys[flatten(l_pos)] = block_key
 }
