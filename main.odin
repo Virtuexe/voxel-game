@@ -202,10 +202,6 @@ main :: proc() {
     }
 
     rl.UnloadTexture(crosshair_texture)
-    for texture, block in block_cube_textures {
-        if !is_texture_cube(block) do continue
-        rl.UnloadTexture(texture)
-    }
     for texture in redstone_render_texture {
         rl.UnloadRenderTexture(texture)
     }
@@ -216,13 +212,8 @@ main :: proc() {
 init :: proc() {
     calc_window()
 
-    init_block_model()
-    init_decal_model()
     crosshair_texture = rl.LoadTexture("assets/crosshair.png")
-    block_cube_textures = #partial {
-        .Dirt = rl.LoadTexture("assets/dirt.png"),
-        .Stone = rl.LoadTexture("assets/stone.png"),
-    }
+    block_init()
     gen_redstone_textures()
 
     world_init()
@@ -288,6 +279,15 @@ update :: proc() {
             state.block_in_hand = {.Stone, {}}
         }
         if rl.IsKeyDown(.THREE) {
+            state.block_in_hand = {.Cobblestone, {}}
+        }
+        if rl.IsKeyDown(.FOUR) {
+            state.block_in_hand = {.Glass, {}}
+        }
+        if rl.IsKeyDown(.FIVE) {
+            state.block_in_hand = {.Planks, {}}
+        }
+        if rl.IsKeyDown(.SIX) {
             state.block_in_hand = {.Redstone, {}}
         }
     }
@@ -352,15 +352,19 @@ draw :: proc() {
     for do_transparent in ([]bool{false, true}) {
     for block_key, i in world.block_keys {
         block := world.palette[block_key]
-        if do_transparent == !is_texture_transparent(block.type) do continue
+        info := block_infos[block.type]
+        if do_transparent != .TEXTURE_TRANSPARENT in info.flags do continue // TODO
 
         p := to_vec3(unflatten(i))
-        if is_texture_cube(block.type) {
-            texture := block_cube_textures[block.type]
+        if texture, ok := &info.texture.(BlockT_Cube); ok {
+            texture := texture.tex
             rl.SetMaterialTexture(&block_model.materials[0], .ALBEDO, texture)
             rl.DrawModel(block_model, p, 1, rl.WHITE)
         }
-        else if is_texture_decal(block.type) {
+        else if texture, ok := &info.texture.(BlockT_Double); ok{
+
+        }
+        else if .TEXTURE_DECAL in info.flags {
             if block.type == .Redstone {
                 redstone := block.data.redstone
                 texture := get_redstone_texture(redstone.on, redstone.connections)
@@ -429,6 +433,37 @@ init_block_model :: proc() {
     rl.UpdateMeshBuffer(mesh, 1, mesh.texcoords, mesh.vertexCount * 2 * size_of(f32), 0)
 
     block_model = rl.LoadModelFromMesh(mesh)
+}
+
+UV_HALF_ROT_90  :: [8]f32{ 0,1, 1,1, 1,0.5, 0,0.5 }
+UV_HALF_ROT_180 :: [8]f32{ 1,1, 1,0.5, 0,0.5, 0,1 }
+
+init_slab_model :: proc() {
+    mesh := rl.GenMeshCube(1, 0.5, 1)
+
+    verts := cast([^]f32)mesh.vertices
+    for i in 0..<mesh.vertexCount {
+        verts[i * 3 + 1] -= 0.25 
+    }
+    rl.UpdateMeshBuffer(mesh, 0, mesh.vertices, mesh.vertexCount * 3 * size_of(f32), 0)
+
+    coords := cast([^]f32)mesh.texcoords
+
+    // FRONT
+    set_face_uvs(coords, 0, UV_HALF_ROT_90)  
+    // BACK
+    set_face_uvs(coords, 1, UV_HALF_ROT_180) 
+    // TOP
+    set_face_uvs(coords, 2, UV_NORMAL) 
+    // BOTTOM
+    set_face_uvs(coords, 3, UV_ROT_90)  
+    // RIGHT
+    set_face_uvs(coords, 4, UV_HALF_ROT_180)  
+    // LEFT
+    set_face_uvs(coords, 5, UV_HALF_ROT_90) 
+    
+    rl.UpdateMeshBuffer(mesh, 1, mesh.texcoords, mesh.vertexCount * 2 * size_of(f32), 0)
+    slab_model = rl.LoadModelFromMesh(mesh) 
 }
 init_decal_model :: proc() {
     decal_model = rl.LoadModelFromMesh(rl.GenMeshPlane(1, 1, 1, 1))
@@ -571,7 +606,8 @@ get_wasd_input :: proc(forward, right, up: Vec3) -> (wasd:Vec3) {
 }
 is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block) -> bool {
     if block == {.Air, {}} do return false
-    if !is_block_stateless(block) do return false 
+    info := block_infos[block.type]
+    if .STATEFUL in info.flags do return false 
     block_pos := to_vec3(block_pos)
 
     p_min := player - state.collider_offset

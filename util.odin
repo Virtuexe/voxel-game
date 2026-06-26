@@ -23,3 +23,5 @@ to_vec2 :: proc(a: [2]i32) -> Vec2 {
 from_vec2 :: proc(a: Vec2) -> [2]i32 {
     return {i32(a.x), i32(a.y)}
 }
+
+//Helpers

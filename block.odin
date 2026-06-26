@@ -4,55 +4,82 @@ import rlgl "vendor:raylib/rlgl"
 
 //RENDER
 block_model: rl.Model
+slab_model: rl.Model
 decal_model: rl.Model
 redstone_render_texture: [(1<<len(Direction))*2]rl.RenderTexture2D
-block_cube_textures: [Block_Type]rl.Texture2D
-is_texture_cube :: proc(block: Block_Type) -> bool {
-    switch block {
-    case .Dirt, .Stone:
-        return true
-    case .Air, .Redstone:
-        return false
-    }
-    return {}
+
+Block_Type :: enum {
+    Air, Dirt, Stone, Cobblestone, Glass, Planks,
+    Redstone,
 }
-is_texture_decal :: proc(block: Block_Type) -> bool {
-    #partial switch block {
-    case .Redstone:
-        return true
-    case:
-        return false
+
+Block_Info :: struct {
+    flags: bit_set[Block_Flag],
+    texture: Block_Texture,
+}
+Block_Flag :: enum {
+    TEXTURE_CUBE,
+    TEXTURE_DECAL,
+    TEXTURE_TRANSPARENT,
+    STATEFUL,
+}
+Block_Texture :: union {BlockT_Cube, BlockT_Double}
+BlockT_Cube :: struct {
+    path: cstring,
+    tex: rl.Texture2D,
+}
+BlockT_Double :: struct {
+    path_side, path_cap: cstring,
+    side, cap: rl.Texture2D,
+}
+block_infos := [Block_Type]Block_Info {
+    .Air = {
+        flags = {},
+    },
+    .Dirt = {
+        flags = {.TEXTURE_CUBE},
+        texture = BlockT_Cube{path="assets/dirt.png"},
+    },
+    .Stone = {
+        flags = {.TEXTURE_CUBE},
+        texture = BlockT_Cube{path="assets/stone.png"},
+    },
+    .Cobblestone = {
+        flags = {.TEXTURE_CUBE},
+        texture = BlockT_Cube{path="assets/cobblestone.png"},
+    },
+    .Glass = {
+        flags = {.TEXTURE_CUBE, .TEXTURE_TRANSPARENT},
+        texture = BlockT_Cube{path="assets/glass.png"}
+    },
+    .Planks = {
+        flags = {.TEXTURE_CUBE},
+        texture = BlockT_Cube{path="assets/planks.png"}
+    },
+    .Redstone = {
+        flags = {.TEXTURE_DECAL, .TEXTURE_TRANSPARENT, .STATEFUL}
     }
 }
-is_texture_transparent :: proc(block: Block_Type) -> bool {
-    #partial switch block {
-    case .Redstone:
-        return true
-    case:
-        return false
+
+block_init :: proc() {
+    init_block_model()
+    init_slab_model()
+    init_decal_model()
+    for &info in block_infos {
+        if texture, ok := &info.texture.(BlockT_Cube); ok {
+            texture.tex = rl.LoadTexture(texture.path)
+        }
     }
 }
+//TODO unload textures
 
 //GAMEPLAY
 Block :: struct {
     type: Block_Type,
     data: Block_Data,
 }
-Block_Type :: enum {
-    Air, Dirt, Stone,
-    Redstone,
-}
 Block_Data :: struct #raw_union {
     redstone: Redstone,
-}
-is_block_stateless :: proc(block: Block) -> bool {
-    switch block.type {
-    case .Air, .Dirt, .Stone:
-        return true
-    case .Redstone: 
-        return false
-    }
-    return false
 }
 Redstone :: struct {
     on: bool,
