@@ -6,6 +6,9 @@ import rlgl "vendor:raylib/rlgl"
 block_model: rl.Model
 slab_model: rl.Model
 decal_model: rl.Model
+block_model_bbox: rl.BoundingBox
+slab_model_bbox: rl.BoundingBox
+decal_model_bbox: rl.BoundingBox
 redstone_render_texture: [(1<<len(Direction))*2]rl.RenderTexture2D
 
 Block_Type :: enum {

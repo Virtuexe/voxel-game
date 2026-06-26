@@ -80,14 +80,17 @@ make_multi_material_model :: proc(is_slab: bool) -> rl.Model {
 
 init_block_model :: proc() {
     block_model = make_multi_material_model(false)
+    block_model_bbox = rl.GetModelBoundingBox(block_model)
 }
 
 init_slab_model :: proc() {
     slab_model = make_multi_material_model(true)
+    slab_model_bbox = rl.GetModelBoundingBox(slab_model)
 }
 
 init_decal_model :: proc() {
     decal_model = rl.LoadModelFromMesh(rl.GenMeshPlane(1, 1, 1, 1))
+    decal_model_bbox = rl.GetModelBoundingBox(decal_model)
     
     img := rl.GenImageColor(1, 1, rl.WHITE)
     white_texture = rl.LoadTextureFromImage(img)

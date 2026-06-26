@@ -200,14 +200,27 @@ update :: proc() {
             for block_key, block_i in chunk.block_keys {
                 if block_key == 0 do continue
                 l_pos := unflatten(block_i)
-                global_pos := [3]i32{c_pos.x * CHUNK.x + l_pos.x, c_pos.y * CHUNK.y + l_pos.y, c_pos.z * CHUNK.z + l_pos.z}
+                global_pos := get_global_pos(c_pos, l_pos)
                 block_pos := to_vec3(global_pos)
-                if !is_overlapping_at(state.cam.position, global_pos) do continue
+                block := chunk.palette[block_key]
+                if !is_overlapping(state.cam.position, global_pos, block) do continue
+
+                info := block_infos[block.type]
+                model_bbox := block_model_bbox
+                if info.model == .Slab {
+                    model_bbox = slab_model_bbox
+                    block_pos.y -= 0.25
+                } else if info.model == .Decal {
+                    model_bbox = decal_model_bbox
+                    block_pos.y -= 0.499
+                }
+                b_min := block_pos + model_bbox.min
+                b_max := block_pos + model_bbox.max
 
                 if movement[i] < 0 {
-                    state.cam.position[i] = block_pos[i] + 0.5 + state.collider_offset[i]
+                    state.cam.position[i] = b_max[i] + state.collider_offset[i]
                 } else if movement[i] > 0 {
-                    state.cam.position[i] = block_pos[i] - 0.5 + state.collider_offset[i] - state.collider_size[i]
+                    state.cam.position[i] = b_min[i] + state.collider_offset[i] - state.collider_size[i]
                 }
 
                 movement[i] = 0
@@ -338,12 +351,17 @@ raycast :: proc() {
             global_pos := get_global_pos(c_pos, l_pos)
             block_pos := to_vec3(global_pos)
             
-            min_box := block_pos - rl.Vector3{0.5, 0.5, 0.5}
-            max_box := block_pos + rl.Vector3{0.5, 0.5, 0.5}
-            if block_infos[chunk.palette[block_key].type].model == .Slab {
-                max_box.y -= 0.5
+            info := block_infos[chunk.palette[block_key].type]
+            model_bbox := block_model_bbox
+            if info.model == .Slab {
+                model_bbox = slab_model_bbox
+                block_pos.y -= 0.25
+            } else if info.model == .Decal {
+                model_bbox = decal_model_bbox
+                block_pos.y -= 0.499
             }
-            bbox := rl.BoundingBox{min_box, max_box}
+            
+            bbox := rl.BoundingBox{block_pos + model_bbox.min, block_pos + model_bbox.max}
 
             hit := rl.GetRayCollisionBox(ray, bbox)
 
@@ -411,11 +429,17 @@ is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block) -> bool {
 
     p_min := player - state.collider_offset
     p_max := p_min + state.collider_size
-    b_min := block_pos - Vec3{0.5, 0.5, 0.5}
-    b_max := block_pos + Vec3{0.5, 0.5, 0.5}
+    model_bbox := block_model_bbox
     if info.model == .Slab {
-        b_max.y -= 0.5
+        model_bbox = slab_model_bbox
+        block_pos.y -= 0.25
+    } else if info.model == .Decal {
+        model_bbox = decal_model_bbox
+        block_pos.y -= 0.499
     }
+    
+    b_min := block_pos + model_bbox.min
+    b_max := block_pos + model_bbox.max
     
     overlap_x := min(p_max.x, b_max.x) - max(p_min.x, b_min.x)
     overlap_y := min(p_max.y, b_max.y) - max(p_min.y, b_min.y)
