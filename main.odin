@@ -131,6 +131,9 @@ update :: proc() {
         if rl.IsKeyDown(.SIX) {
             state.block_in_hand = {.Redstone, {}}
         }
+        if rl.IsKeyDown(.SEVEN) {
+            state.block_in_hand = {.Slab, {}}
+        }
     }
 
     if state.use_mouse_input {
@@ -201,36 +204,56 @@ draw :: proc() {
                 if block_key == 0 do continue
                 block := world.palette[block_key]
                 info := block_infos[block.type]
-                if do_transparent != (.TEXTURE_TRANSPARENT in info.flags) do continue // TODO
+                if do_transparent != (.TEXTURE_TRANSPARENT in info.flags) do continue
 
                 l_pos := unflatten(i)
-                global_pos := [3]i32{c_pos.x * CHUNK.x + l_pos.x, c_pos.y * CHUNK.y + l_pos.y, c_pos.z * CHUNK.z + l_pos.z}
+                global_pos := get_global_pos(c_pos, l_pos)
                 p := to_vec3(global_pos)
-                if texture, ok := &info.texture.(BlockT_Cube); ok {
-                    texture := texture.tex
-                    rl.SetMaterialTexture(&block_model.materials[0], .ALBEDO, texture)
-                    rl.DrawModel(block_model, p, 1, rl.WHITE)
+                model_to_draw := block_model
+                if info.model == .Slab {
+                    model_to_draw = slab_model
+                    p.y -= 0.25
+                } else if info.model == .Decal {
+                    model_to_draw = decal_model
+                    p.y -= 0.499
                 }
-                else if texture, ok := &info.texture.(BlockT_Double); ok{
-                    rl.SetMaterialTexture(&block_model.materials[0], .ALBEDO, texture.side)
-                    rl.SetMaterialTexture(&block_model.materials[1], .ALBEDO, texture.cap)
-                    rl.DrawModel(block_model, p, 1, rl.WHITE)
+                
+                tex := info.texture
+                if block.type == .Redstone {
+                    redstone := block.data.redstone
+                    tex = BlockT_Cube{tex = get_redstone_texture(redstone.on, redstone.connections).texture}
                 }
-                else if .TEXTURE_DECAL in info.flags {
-                    if block.type == .Redstone {
-                        redstone := block.data.redstone
-                        texture := get_redstone_texture(redstone.on, redstone.connections)
-                        rl.SetMaterialTexture(&decal_model.materials[0], .ALBEDO, texture.texture)
-                    }
-                    rl.DrawModel(decal_model, p - {0,.499,0}, 1, rl.WHITE)
+                
+                if texture, ok := tex.(BlockT_Cube); ok {
+                    rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, texture.tex)
+                    if info.model != .Decal do rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, texture.tex)
+                } else if texture, ok := tex.(BlockT_Double); ok {
+                    rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, texture.side)
+                    if info.model != .Decal do rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, texture.top)
                 }
+                
+                rl.DrawModel(model_to_draw, p, 1, rl.WHITE)
             }
         }
     }
     
     if state.has_target_block {
         pos := to_vec3(state.target_block)
-        rl.DrawCube(pos, 1.001, 1.001, 1.001, rl.Color{255, 255, 255, 100})
+        block_key := world_get_block(state.target_block)
+        block := world.palette[block_key]
+        info := block_infos[block.type]
+        
+        if info.model != .Decal {
+            model_to_draw := info.model == .Slab ? slab_model : block_model
+            
+            rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, white_texture)
+            rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, white_texture)
+            
+            if info.model == .Slab do pos.y -= 0.25
+            rl.DrawModel(model_to_draw, pos, 1.001, rl.Color{255, 255, 255, 100})
+        } else {
+            rl.DrawCube(pos, 1.001, 1.001, 1.001, rl.Color{255, 255, 255, 100})
+        }
     }
     if state.show_debug {
         draw_xyz()
@@ -286,6 +309,9 @@ raycast :: proc() {
             
             min_box := block_pos - rl.Vector3{0.5, 0.5, 0.5}
             max_box := block_pos + rl.Vector3{0.5, 0.5, 0.5}
+            if block_infos[world.palette[block_key].type].model == .Slab {
+                max_box.y -= 0.5
+            }
             bbox := rl.BoundingBox{min_box, max_box}
 
             hit := rl.GetRayCollisionBox(ray, bbox)
@@ -349,13 +375,16 @@ get_wasd_input :: proc(forward, right, up: Vec3) -> (wasd:Vec3) {
 is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block) -> bool {
     if block == {.Air, {}} do return false
     info := block_infos[block.type]
-    if .STATEFUL in info.flags do return false 
+    if .NO_COLLISION in info.flags do return false 
     block_pos := to_vec3(block_pos)
 
     p_min := player - state.collider_offset
     p_max := p_min + state.collider_size
     b_min := block_pos - Vec3{0.5, 0.5, 0.5}
     b_max := block_pos + Vec3{0.5, 0.5, 0.5}
+    if info.model == .Slab {
+        b_max.y -= 0.5
+    }
     
     overlap_x := min(p_max.x, b_max.x) - max(p_min.x, b_min.x)
     overlap_y := min(p_max.y, b_max.y) - max(p_min.y, b_min.y)

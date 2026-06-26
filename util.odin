@@ -38,3 +38,12 @@ get_local_pos :: proc(pos: [3]i32) -> [3]i32 {
         pos.z %% CHUNK.z,
     }
 }
+
+get_global_pos :: proc(c_pos, l_pos: [3]i32) -> [3]i32 {
+    return {
+        c_pos.x * CHUNK.x + l_pos.x,
+        c_pos.y * CHUNK.y + l_pos.y,
+        c_pos.z * CHUNK.z + l_pos.z,
+    }
+}
+

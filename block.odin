@@ -10,18 +10,18 @@ redstone_render_texture: [(1<<len(Direction))*2]rl.RenderTexture2D
 
 Block_Type :: enum {
     Air, Dirt, Stone, Cobblestone, Glass, Planks,
-    Redstone,
+    Redstone, Slab,
 }
 
 Block_Info :: struct {
     flags: bit_set[Block_Flag],
     texture: Block_Texture,
+    model: Block_Model
 }
 Block_Flag :: enum {
-    TEXTURE_CUBE,
-    TEXTURE_DECAL,
     TEXTURE_TRANSPARENT,
     STATEFUL,
+    NO_COLLISION,
 }
 Block_Texture :: union {BlockT_Cube, BlockT_Double}
 BlockT_Cube :: struct {
@@ -30,34 +30,46 @@ BlockT_Cube :: struct {
 }
 BlockT_Double :: struct {
     path_side, path_cap: cstring,
-    side, cap: rl.Texture2D,
+    side, top: rl.Texture2D,
 }
+Block_Model :: enum {Cube, Slab, Decal}
 block_infos := [Block_Type]Block_Info {
     .Air = {
         flags = {},
     },
     .Dirt = {
-        flags = {.TEXTURE_CUBE},
+        flags = {},
         texture = BlockT_Cube{path="assets/dirt.png"},
+        model = .Cube,
     },
     .Stone = {
-        flags = {.TEXTURE_CUBE},
+        flags = {},
         texture = BlockT_Cube{path="assets/stone.png"},
+        model = .Cube,
     },
     .Cobblestone = {
-        flags = {.TEXTURE_CUBE},
+        flags = {},
         texture = BlockT_Cube{path="assets/cobblestone.png"},
+        model = .Cube,
     },
     .Glass = {
-        flags = {.TEXTURE_CUBE, .TEXTURE_TRANSPARENT},
-        texture = BlockT_Cube{path="assets/glass.png"}
+        flags = {.TEXTURE_TRANSPARENT},
+        texture = BlockT_Cube{path="assets/glass.png"},
+        model = .Cube,
     },
     .Planks = {
-        flags = {.TEXTURE_CUBE},
-        texture = BlockT_Cube{path="assets/planks.png"}
+        flags = {},
+        texture = BlockT_Cube{path="assets/planks.png"},
+        model = .Cube,
     },
     .Redstone = {
-        flags = {.TEXTURE_DECAL, .TEXTURE_TRANSPARENT, .STATEFUL}
+        flags = {.TEXTURE_TRANSPARENT, .STATEFUL, .NO_COLLISION},
+        model = .Decal,
+    },
+    .Slab = {
+        flags = {},
+        texture = BlockT_Double{path_side="assets/slab_side.png", path_cap="assets/slab_top.png"},
+        model = .Slab,
     }
 }
 
@@ -68,6 +80,9 @@ block_init :: proc() {
     for &info in block_infos {
         if texture, ok := &info.texture.(BlockT_Cube); ok {
             texture.tex = rl.LoadTexture(texture.path)
+        } else if texture, ok := &info.texture.(BlockT_Double); ok {
+            texture.side = rl.LoadTexture(texture.path_side)
+            texture.top = rl.LoadTexture(texture.path_cap)
         }
     }
 }

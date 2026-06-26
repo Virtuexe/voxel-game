@@ -13,48 +13,85 @@ set_face_uvs :: proc(c: [^]f32, face_idx: int, uv_data: [8]f32) {
     }
 }
 
-init_block_model :: proc() {
-    mesh := rl.GenMeshCube(1, 1, 1)
-    coords := cast([^]f32)mesh.texcoords
-
-    set_face_uvs(coords, 0, UV_ROT_90)  
-    set_face_uvs(coords, 1, UV_ROT_180) 
-    set_face_uvs(coords, 2, UV_NORMAL) 
-    set_face_uvs(coords, 3, UV_ROT_90)  
-    set_face_uvs(coords, 4, UV_ROT_180)  
-    set_face_uvs(coords, 5, UV_ROT_90) 
-    
-    rl.UpdateMeshBuffer(mesh, 1, mesh.texcoords, mesh.vertexCount * 2 * size_of(f32), 0)
-    block_model = rl.LoadModelFromMesh(mesh)
-}
+white_texture: rl.Texture2D
 
 UV_HALF_ROT_90  :: [8]f32{ 0,1, 1,1, 1,0.5, 0,0.5 }
 UV_HALF_ROT_180 :: [8]f32{ 1,1, 1,0.5, 0,0.5, 0,1 }
 
-init_slab_model :: proc() {
-    mesh := rl.GenMeshCube(1, 0.5, 1)
-
-    verts := cast([^]f32)mesh.vertices
-    for i in 0..<mesh.vertexCount {
-        verts[i * 3 + 1] -= 0.25 
-    }
-    rl.UpdateMeshBuffer(mesh, 0, mesh.vertices, mesh.vertexCount * 3 * size_of(f32), 0)
-
-    coords := cast([^]f32)mesh.texcoords
-
-    set_face_uvs(coords, 0, UV_HALF_ROT_90)  
-    set_face_uvs(coords, 1, UV_HALF_ROT_180) 
-    set_face_uvs(coords, 2, UV_NORMAL) 
-    set_face_uvs(coords, 3, UV_ROT_90)  
-    set_face_uvs(coords, 4, UV_HALF_ROT_180)  
-    set_face_uvs(coords, 5, UV_HALF_ROT_90) 
+make_multi_material_model :: proc(is_slab: bool) -> rl.Model {
+    model: rl.Model
+    model.transform = rl.Matrix(1)
+    model.meshCount = 2
+    model.materialCount = 2
+    model.meshes = cast(^rl.Mesh)rl.MemAlloc(u32(size_of(rl.Mesh) * 2))
+    model.materials = cast(^rl.Material)rl.MemAlloc(u32(size_of(rl.Material) * 2))
+    model.meshMaterial = cast(^i32)rl.MemAlloc(u32(size_of(i32) * 2))
     
-    rl.UpdateMeshBuffer(mesh, 1, mesh.texcoords, mesh.vertexCount * 2 * size_of(f32), 0)
-    slab_model = rl.LoadModelFromMesh(mesh) 
+    model.materials[0] = rl.LoadMaterialDefault()
+    model.materials[1] = rl.LoadMaterialDefault()
+    model.meshMaterial[0] = 0 // Sides use material 0
+    model.meshMaterial[1] = 1 // Top/bottom use material 1
+    
+    for i in 0..<2 {
+        mesh := rl.GenMeshCube(1, is_slab ? 0.5 : 1, 1)
+        
+        coords := cast([^]f32)mesh.texcoords
+        if is_slab {
+            set_face_uvs(coords, 0, UV_HALF_ROT_90)  
+            set_face_uvs(coords, 1, UV_HALF_ROT_180) 
+            set_face_uvs(coords, 2, UV_NORMAL) 
+            set_face_uvs(coords, 3, UV_ROT_90)  
+            set_face_uvs(coords, 4, UV_HALF_ROT_180)  
+            set_face_uvs(coords, 5, UV_HALF_ROT_90) 
+        } else {
+            set_face_uvs(coords, 0, UV_ROT_90)  
+            set_face_uvs(coords, 1, UV_ROT_180) 
+            set_face_uvs(coords, 2, UV_NORMAL) 
+            set_face_uvs(coords, 3, UV_ROT_90)  
+            set_face_uvs(coords, 4, UV_ROT_180)  
+            set_face_uvs(coords, 5, UV_ROT_90) 
+        }
+        rl.UpdateMeshBuffer(mesh, 1, mesh.texcoords, mesh.vertexCount * 2 * size_of(f32), 0)
+        
+        faces := i == 0 ? []int{0, 1, 4, 5} : []int{2, 3}
+        indices := cast([^]u16)mesh.indices
+        
+        temp_indices: [36]u16
+        for j in 0..<36 { temp_indices[j] = indices[j] }
+        
+        idx := 0
+        for face in faces {
+            for j in 0..<6 {
+                indices[idx] = temp_indices[face * 6 + j]
+                idx += 1
+            }
+        }
+        
+        mesh.triangleCount = i32(len(faces) * 2)
+        
+        // Update GPU index buffer (index 6 is INDEX_BUFFER)
+        rl.UpdateMeshBuffer(mesh, 6, mesh.indices, mesh.triangleCount * 3 * size_of(u16), 0)
+        
+        model.meshes[i] = mesh
+    }
+    
+    return model
+}
+
+init_block_model :: proc() {
+    block_model = make_multi_material_model(false)
+}
+
+init_slab_model :: proc() {
+    slab_model = make_multi_material_model(true)
 }
 
 init_decal_model :: proc() {
     decal_model = rl.LoadModelFromMesh(rl.GenMeshPlane(1, 1, 1, 1))
+    
+    img := rl.GenImageColor(1, 1, rl.WHITE)
+    white_texture = rl.LoadTextureFromImage(img)
+    rl.UnloadImage(img)
 }
 
 gen_redstone_textures :: proc() {
