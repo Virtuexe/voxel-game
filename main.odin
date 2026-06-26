@@ -67,6 +67,23 @@ init :: proc() {
     init_code()
 }
 
+is_player_supported :: proc(pos: Vec3) -> bool {
+    test_pos := pos
+    test_pos.y -= 0.05
+    for c_pos, chunk in world.chunks {
+        for block_key, block_i in chunk.block_keys {
+            if block_key == 0 do continue
+            l_pos := unflatten(block_i)
+            global_pos := get_global_pos(c_pos, l_pos)
+            block := chunk.palette[block_key]
+            if is_overlapping(test_pos, global_pos, block) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
 update :: proc() {
     calc_window()
     delta := get_delta()
@@ -99,8 +116,8 @@ update :: proc() {
         math.sin_f32(pitch_rad),
         math.cos_f32(pitch_rad) * math.sin_f32(yaw_rad),
     }
-    forward_move := Vec3{forward.x, 0, forward.z}
-    right_move := linalg.normalize(linalg.vector_cross3(forward_move, up))
+    forward_move := linalg.normalize0(Vec3{forward.x, 0, forward.z})
+    right_move := linalg.normalize0(linalg.vector_cross3(forward_move, up))
     if state.mouse_lock {
         rl.HideCursor()
         rl.SetMousePosition(i32(screen.x/2), i32(screen.y/2))
@@ -146,9 +163,16 @@ update :: proc() {
         }
     }
     //MOVEMENT
+    state.is_shifting = rl.IsKeyDown(.LEFT_SHIFT) && state.use_key_input
     move_speed := state.move_speed
-    if rl.IsKeyDown(.LEFT_CONTROL) {
-        move_speed *= 1.5
+    if state.is_shifting {
+        move_speed *= 0.5
+        state.collider_size.y = 1.5
+    } else {
+        if rl.IsKeyDown(.LEFT_CONTROL) {
+            move_speed *= 1.5
+        }
+        state.collider_size.y = 2.0
     }
     wasd: Vec3
     if state.use_key_input do wasd = get_wasd_input(forward_move, right_move, up)
@@ -156,13 +180,21 @@ update :: proc() {
     if state.apply_gravity {
         state.velocity.y -= state.gravity * delta
     }
-    if rl.IsKeyPressed(.SPACE) && state.is_grounded && state.use_key_input {
+    if rl.IsKeyPressed(.SPACE) && state.is_grounded && state.can_jump && state.use_key_input {
         state.velocity.y = state.jump_strength
     }
     movement += state.velocity * delta
     //COLLISION
+    was_grounded := state.is_grounded
     state.is_grounded = false
     for i in 0..<3 {
+        if state.is_shifting && was_grounded && !state.is_flying && i != 1 {
+            test_pos := state.cam.position
+            test_pos[i] += movement[i]
+            if !is_player_supported(test_pos) {
+                movement[i] = 0
+            }
+        }
         state.cam.position[i] += movement[i]
         collision_loop: for c_pos, chunk in world.chunks {
             for block_key, block_i in chunk.block_keys {

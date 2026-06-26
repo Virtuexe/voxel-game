@@ -14,6 +14,7 @@ Player_Movement :: struct {
     velocity: Vec3,
     yaw: f32,
     pitch: f32,
+    is_shifting: bool,
 }
 
 Player_Input :: struct {
