@@ -89,7 +89,7 @@ Redstone :: struct {
 
 block_place :: proc() {
     block := state.block_in_hand
-    if is_overlapping(state.cam.position, unflatten(state.place_block_index), block) {
+    if is_overlapping(state.cam.position, state.place_block_index, block) {
         return
     }
     #partial switch block.type {
@@ -101,21 +101,21 @@ block_place :: proc() {
     raycast()
 }
 place_base_block :: proc(block: Block) {
-    world.block_keys[state.place_block_index] = palette_provide_block_key(block)
+    world_set_block(state.place_block_index, palette_provide_block_key(block))
 }
 place_redstone :: proc() {
     pos1 := state.place_block
     pos2 := pos1 + state.place_block_direction_normal
     pos1_i := state.place_block_index
-    pos2_i := flatten(from_vec3(pos2))
+    pos2_i := from_vec3(pos2)
     dir1 := state.place_block_direction
     dir2 := normal_to_direction(-state.place_block_direction_normal_2d)
 
     redstone := Block{.Redstone, {redstone={true, state.place_block_face, {}}}}
     redstone.data.redstone.connections[dir1] = true
-    world.block_keys[pos1_i] = palette_provide_block_key(redstone)
+    world_set_block(pos1_i, palette_provide_block_key(redstone))
 
     redstone2 := Block{.Redstone, {redstone={true, state.place_block_face, {}}}}
     redstone2.data.redstone.connections[dir2] = true
-    world.block_keys[pos2_i] = palette_provide_block_key(redstone2)
+    world_set_block(pos2_i, palette_provide_block_key(redstone2))
 }

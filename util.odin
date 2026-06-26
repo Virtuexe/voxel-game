@@ -24,4 +24,17 @@ from_vec2 :: proc(a: Vec2) -> [2]i32 {
     return {i32(a.x), i32(a.y)}
 }
 
-//Helpers
+get_chunk_pos :: proc(pos: [3]i32) -> [3]i32 {
+    return {
+        pos.x < 0 ? (pos.x + 1) / CHUNK.x - 1 : pos.x / CHUNK.x,
+        pos.y < 0 ? (pos.y + 1) / CHUNK.y - 1 : pos.y / CHUNK.y,
+        pos.z < 0 ? (pos.z + 1) / CHUNK.z - 1 : pos.z / CHUNK.z,
+    }
+}
+get_local_pos :: proc(pos: [3]i32) -> [3]i32 {
+    return {
+        pos.x %% CHUNK.x,
+        pos.y %% CHUNK.y,
+        pos.z %% CHUNK.z,
+    }
+}
