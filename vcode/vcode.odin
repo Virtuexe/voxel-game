@@ -78,7 +78,7 @@ update :: proc() {
     mouse := ui.get_mouse_pos_local(camera)
     if ui.is_mouse_button_pressed(.LEFT) {
         for block, i in blocks {
-            if ui.contains_point(block.label.rec, mouse) {
+            if ui.contains_point(block.rec, mouse) {
                 held_block = i
             }
         }
@@ -101,10 +101,11 @@ update :: proc() {
     if held_block != -1 {
         block := &blocks[held_block]
         block.rec.pos = mouse - block.label.rec.size/2
+        calculate_block(block)
     }
     try_join_blocks :: proc(block1: ^Block, block2: Block, peg1, peg2: Peg, anchor1, anchor2: ui.Anchor) -> (joined: bool) {
         if ui.overlaps(peg1.hitbox, peg2.hitbox) {
-            block1.rec = ui.align_at(block1.rec, anchor1, block2.rec, anchor2)
+            ui.align_at(&block1.rec, anchor1, block2.rec, anchor2)
             calculate_block(block1)
             return true
         }
@@ -112,9 +113,9 @@ update :: proc() {
     }
 }
 calculate_block :: proc(block: ^Block) {
-    calculate_label(&block.label, block.rec.pos)
+    calculate_label(&block.label, {})
     block.rec.size = block.label.rec.size
-    calculate_peg_info(&block.peg_info, block.rec)
+    calculate_peg_info(block)    
 }
 calculate_label :: proc(label: ^Label, pos: ui.Vec) {
     label.rec.pos = pos
@@ -126,45 +127,51 @@ calculate_label :: proc(label: ^Label, pos: ui.Vec) {
         case .Word:
             text := &label.words[ti]
             item = &text.item
-            text.style = ui.make_text_style(5)
+            text.style = ui.make_text_style(0.05)
             item.rec.size = ui.measure_text_size(text.text, text.style)
             ti += 1
         case .Hole:
             hole := &label.holes[hi]
             item = &hole.item
-            item.rec.size = {30, 5}
+            item.rec.size = {0.3, 0.05}
             hi += 1
         }
         item.rec.pos = pos
         pos.x += item.rec.size.x
     }
-    label.rec.size = {pos.x-label.rec.pos.x, 5} + 3
+    label.rec.size = {pos.x-label.rec.pos.x, 0.05}
 }
-calculate_peg_info :: proc(info: ^Peg_Info, rec: ui.Rec) {
-    dist := f32(2.5)
-    height := f32(2.5)
-    width := f32(2)  
+calculate_peg_info :: proc(block: ^Block) {
+    info := &block.peg_info
+    dist := f32(0.025)
+    height := f32(0.025)
+    width := f32(0.02)  
+    //block.rec = ui.resize_anchored(block.rec, .Center, ui.vmax({width, height}))
     if peg, ok := &info.top.(Peg); ok {
-        at := ui.align_at({{},{width,height}}, .Bottom_Left, rec, .Top_Left)
-        peg.rec = ui.move(at, {dist,0})
-        peg.hitbox = ui.resize(peg.rec, .Center, peg.rec.size)
+        peg.rec = {{}, {width,height}}
+        ui.align_at(&peg.rec, .Bottom_Left, block.rec, .Top_Left)
+        ui.move(&peg.rec, {dist,0})
+        peg.hitbox = peg.rec
+        ui.resize_anchored(&peg.hitbox, .Center, peg.rec.size)
     }
     if peg, ok := &info.bottom.(Peg); ok {
-        at := ui.align({{},{width,height}}, rec, .Bottom_Left)
-        peg.rec = ui.move(at, {dist,0})
-        peg.hitbox = ui.resize(peg.rec, .Center, peg.rec.size)
+        peg.rec = {{}, {width,height}}
+        ui.align(&peg.rec, block.rec, .Bottom_Left)
+        ui.move(&peg.rec, {dist,0})
+        peg.hitbox = peg.rec
+        ui.resize_anchored(&peg.hitbox, .Center, peg.rec.size)
     }
-    if peg, ok := &info.left.(Peg); ok {
-        at := ui.align({{},{height,width}}, rec, .Top_Left)
-        peg.rec = ui.move(at, {0,dist})
-        peg.hitbox = ui.resize(peg.rec, .Center, peg.rec.size)
-    }
+    // if peg, ok := &info.left.(Peg); ok {
+    //     at := ui.align({{},{height,width}}, rec, .Top_Left)
+    //     peg.rec = ui.move(at, {0,dist})
+    //     peg.hitbox = ui.resize(peg.rec, .Center, peg.rec.size)
+    // }
 }
 draw :: proc() {
     ui.begin_draw(&camera)
     for &block in blocks {
+        ui.draw_rec(block.rec, ui.GREEN)
         label := &block.label
-        ui.draw_rec(label.rec, ui.GREEN)
         for word in label.words {
             ui.draw_text(word.text, word.style, word.item.rec.pos, ui.WHITE)
         }

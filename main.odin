@@ -362,7 +362,9 @@ draw :: proc() {
             rl.DrawModel(block_model, p, 1, rl.WHITE)
         }
         else if texture, ok := &info.texture.(BlockT_Double); ok{
-
+            rl.SetMaterialTexture(&block_model.materials[0], .ALBEDO, texture.side)
+            rl.SetMaterialTexture(&block_model.materials[1], .ALBEDO, texture.cap)
+            rl.DrawModel(block_model, p, 1, rl.WHITE)
         }
         else if .TEXTURE_DECAL in info.flags {
             if block.type == .Redstone {

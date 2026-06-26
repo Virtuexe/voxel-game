@@ -35,7 +35,7 @@ create_camera :: proc() -> Camera { return {zoom = 1} }
 camera_set_viewport :: proc(camera: ^Camera) {
     min_dim := vmin(get_screen_size())
     if min_dim > 0 {
-        camera.zoom = min_dim / 100
+        camera.zoom = min_dim
     }
 }
 screen_to_camera :: proc(pos: Vec, cam: Camera) -> Vec {
@@ -93,6 +93,7 @@ get_opposite_side :: proc(side: Side) -> Side {
     }
     return {}
 }
+set_opposite_side :: proc(side: ^Side) {side^ = get_opposite_side(side^)}
 get_anchor_dir :: proc(anchor: Anchor) -> Vec {
     switch anchor {
     case .Top_Left:      return {-1, -1}
@@ -141,6 +142,7 @@ get_opposite_anchor :: proc(anchor: Anchor) -> Anchor {
     }
     return .Center
 }
+set_opposite_anchor :: proc(anchor: ^Anchor) {anchor^ = get_opposite_anchor(anchor^)}
 
 vmin :: proc(v: Vec) -> f32 {
     return min(v.x, v.y)
@@ -249,69 +251,53 @@ get_aligned_at_pos :: proc(size: Vec, align_at: Anchor, target: Rec, anchor: Anc
     
     return target_anchor - self_anchor
 }
-move :: proc(item: Rec, vector: Vec) -> Rec {
-    return {item.pos+vector, item.size}
+move :: proc(item: ^Rec, vector: Vec) { item.pos += vector }
+center :: proc(item: ^Rec, pos: Vec) {
+    item.pos = get_centered_pos(pos, item.size)
 }
-center :: proc(item: Rec, pos: Vec) -> Rec {
-    res := item
-    res.pos = get_centered_pos(pos, item.size)
-    return res
+align :: proc(item: ^Rec, target: Rec, anchor: Anchor) {
+    item.pos = get_aligned_pos(item.size, target, anchor)
 }
-align :: proc(item: Rec, target: Rec, anchor: Anchor) -> Rec {
-    res := item
-    res.pos = get_aligned_pos(item.size, target, anchor)
-    return res
+align_at :: proc(item: ^Rec, item_anchor: Anchor, target: Rec, anchor: Anchor) {
+    item.pos = get_aligned_at_pos(item.size, item_anchor, target, anchor)
 }
-align_at :: proc(item: Rec, item_anchor: Anchor, target: Rec, anchor: Anchor) -> Rec {
-    res := item
-    res.pos = get_aligned_at_pos(item.size, item_anchor, target, anchor)
-    return res
-}
-resize :: proc(item: Rec, towards: Anchor, amount: Vec) -> Rec {
-    res := item
-    dir := get_anchor_dir(towards)
-    if towards == .Center {
-        res.pos -= amount
-        res.size += amount * 2.0
-        return res
-    }
-    if dir.x < 0 { 
-        res.pos.x -= amount.x
-        res.size.x += amount.x
-    } else if dir.x > 0 { 
-        res.size.x += amount.x
-    }
-    if dir.y < 0 { 
-        res.pos.y -= amount.y
-        res.size.y += amount.y
-    } else if dir.y > 0 { 
-        res.size.y += amount.y
+resize_anchored :: proc(item: ^Rec, anchor: Anchor, amount: Vec) {
+    item.size += amount
+
+    #partial switch anchor {
+    case .Top_Center, .Center, .Bottom_Center:
+        item.pos.x -= amount.x / 2.0
+    case .Top_Right, .Center_Right, .Bottom_Right:
+        item.pos.x -= amount.x
     }
 
-    return res
+    #partial switch anchor {
+    case .Center_Left, .Center, .Center_Right:
+        item.pos.y -= amount.y / 2.0
+    case .Bottom_Left, .Bottom_Center, .Bottom_Right:
+        item.pos.y -= amount.y
+    }
 }
 
-crop :: proc(rec: Rec, side: Side, amount: f32) -> Rec {
-    res := rec
+crop :: proc(item: ^Rec, side: Side, amount: f32) {
     switch side {
     case .Left:
-        res.pos.x += amount
-        res.size.x -= amount
+        item.pos.x += amount
+        item.size.x -= amount
     case .Right:
-        res.size.x -= amount
+        item.size.x -= amount
     case .Top:
-        res.pos.y += amount
-        res.size.y -= amount
+        item.pos.y += amount
+        item.size.y -= amount
     case .Bottom:
-        res.size.y -= amount
+        item.size.y -= amount
     }
-    return res
 }
 
-cut :: proc(target: Rec, side: Side, amount: f32) -> (res: Rec, piece: Rec) {
-    res = crop(target, side, amount)
+cut :: proc(target: ^Rec, side: Side, amount: f32) -> (piece: Rec) {
+    crop(target, side, amount)
     
-    piece = target
+    piece = target^
 
     switch side {
     case .Left:
@@ -326,45 +312,5 @@ cut :: proc(target: Rec, side: Side, amount: f32) -> (res: Rec, piece: Rec) {
         piece.size.y = amount
     }
 
-    return res, piece
-}
-
-//maybe remove?
-to_relative_point :: proc(pos: Vec, parent: Rec) -> Vec {
-    return {
-        (pos.x - parent.pos.x) / parent.size.x,
-        (pos.y - parent.pos.y) / parent.size.y,
-    }
-}
-to_absolute_point :: proc(rel_pos: Vec, parent: Rec) -> Vec {
-    return {
-        parent.pos.x + (rel_pos.x * parent.size.x),
-        parent.pos.y + (rel_pos.y * parent.size.y),
-    }
-}
-to_relative_vec :: proc(size: Vec, parent_size: Vec) -> Vec {
-    return {
-        size.x / parent_size.x,
-        size.y / parent_size.y,
-    }
-}
-to_absolute_vec :: proc(rel_size: Vec, parent_size: Vec) -> Vec {
-    return {
-        rel_size.x * parent_size.x,
-        rel_size.y * parent_size.y,
-    }
-}
-
-to_relative_rec :: proc(child: Rec, parent: Rec) -> Rec {
-    return {
-        pos  = to_relative_point(child.pos, parent),
-        size = to_relative_vec(child.size, parent.size),
-    }
-}
-
-to_absolute_rec :: proc(rel: Rec, parent: Rec) -> Rec {
-    return {
-        pos  = to_absolute_point(rel.pos, parent),
-        size = to_absolute_vec(rel.size, parent.size),
-    }
+    return piece
 }
