@@ -67,36 +67,30 @@ init :: proc() {
     init_code()
 }
 
-is_player_supported :: proc(pos: Vec3) -> bool {
-    test_pos := pos
-    test_pos.y -= 0.05
-    for c_pos, chunk in world.chunks {
-        for block_key, block_i in chunk.block_keys {
-            if block_key == 0 do continue
-            l_pos := unflatten(block_i)
-            global_pos := get_global_pos(c_pos, l_pos)
-            block := chunk.palette[block_key]
-            if is_overlapping(test_pos, global_pos, block) {
-                return true
+is_player_colliding :: proc(pos: Vec3) -> bool {
+    center := [3]i32{
+        i32(math.floor(pos.x)), 
+        i32(math.floor(pos.y - state.collider_offset.y)), 
+        i32(math.floor(pos.z))
+    }
+    for x in center.x - 1 ..= center.x + 1 {
+        for y in center.y - 1 ..= center.y + 2 {
+            for z in center.z - 1 ..= center.z + 1 {
+                global_pos := [3]i32{x, y, z}
+                block := world_get_block(global_pos)
+                if is_overlapping(pos, global_pos, block) {
+                    return true
+                }
             }
         }
     }
     return false
 }
 
-is_player_colliding :: proc(pos: Vec3) -> bool {
-    for c_pos, chunk in world.chunks {
-        for block_key, block_i in chunk.block_keys {
-            if block_key == 0 do continue
-            l_pos := unflatten(block_i)
-            global_pos := get_global_pos(c_pos, l_pos)
-            block := chunk.palette[block_key]
-            if is_overlapping(pos, global_pos, block) {
-                return true
-            }
-        }
-    }
-    return false
+is_player_supported :: proc(pos: Vec3) -> bool {
+    test_pos := pos
+    test_pos.y -= 0.05
+    return is_player_colliding(test_pos)
 }
 
 update :: proc() {
@@ -211,13 +205,17 @@ update :: proc() {
             }
         }
         state.cam.position[i] += movement[i]
-        collision_loop: for c_pos, chunk in world.chunks {
-            for block_key, block_i in chunk.block_keys {
-                if block_key == 0 do continue
-                l_pos := unflatten(block_i)
-                global_pos := get_global_pos(c_pos, l_pos)
-                block_pos := to_vec3(global_pos)
-                block := chunk.palette[block_key]
+        center := [3]i32{
+            i32(math.floor(state.cam.position.x)), 
+            i32(math.floor(state.cam.position.y - state.collider_offset.y)), 
+            i32(math.floor(state.cam.position.z))
+        }
+        collision_loop: for x in center.x - 1 ..= center.x + 1 {
+            for y in center.y - 1 ..= center.y + 2 {
+                for z in center.z - 1 ..= center.z + 1 {
+                    global_pos := [3]i32{x, y, z}
+                    block_pos := to_vec3(global_pos)
+                    block := world_get_block(global_pos)
                 if !is_overlapping(state.cam.position, global_pos, block) do continue
 
                 info := block_infos[block.type]
@@ -254,6 +252,7 @@ update :: proc() {
                     state.velocity.y = 0
                 }
                 break collision_loop
+                }
             }
         }
     }
