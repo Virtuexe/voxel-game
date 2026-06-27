@@ -33,8 +33,8 @@ Player_Interaction :: struct {
     place_block_face_normal: Vec3,
     place_block_direction_normal: Vec3,
     place_block_direction_normal_2d: Vec2,
-    place_block_face: Face,
-    place_block_direction: Direction,
+    place_block_face: Block_Face,
+    place_block_direction: Cardinal,
 }
 
 Player_Collider :: struct {

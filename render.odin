@@ -115,18 +115,17 @@ init_decal_model :: proc() {
 
 gen_redstone_textures :: proc() {
     for &texture, state in redstone_render_texture {
-        is_on := (state & (1 << len(Direction))) != 0
-        connections: [Direction]bool
-        for dir, dir_index in Direction {
-            dir_index := uint(dir_index)
-            has_dir := (state & (1 << dir_index)) != 0
-            connections[dir] = has_dir
+        is_on := (state & (1 << len(Cardinal))) != 0
+        connections: [Cardinal]bool
+        for _, dir_index in Cardinal {
+            has_dir := (state & (1 << uint(dir_index))) != 0
+            connections[Cardinal(dir_index)] = has_dir
         }
         texture = gen_redstone_texture(is_on, connections)
     }
 }
 
-gen_redstone_texture :: proc(on: bool, connections: [Direction]bool) -> rl.RenderTexture2D {
+gen_redstone_texture :: proc(on: bool, connections: [Cardinal]bool) -> rl.RenderTexture2D {
     dot: rl.Texture2D
     wire: rl.Texture2D
     if on {
@@ -145,10 +144,10 @@ gen_redstone_texture :: proc(on: bool, connections: [Direction]bool) -> rl.Rende
         if connection == false do continue
         rot: f32
         switch dir {
-        case .Up: rot = 180
-        case .Down: rot = 0
-        case .Right: rot = 90
-        case .Left: rot = 270
+        case .North: rot = 180
+        case .South: rot = 0
+        case .East: rot = 90
+        case .West: rot = 270
         }
         rl.DrawTexturePro(wire, rec, {8,8,16,16}, {8, 8}, rot, rl.WHITE)
     }
@@ -158,8 +157,8 @@ gen_redstone_texture :: proc(on: bool, connections: [Direction]bool) -> rl.Rende
     return result
 }
 
-get_redstone_texture :: proc(on: bool, connections: [Direction]bool) -> rl.RenderTexture2D {
-    state := int(on) * (1 << len(Direction))
+get_redstone_texture :: proc(on: bool, connections: [Cardinal]bool) -> rl.RenderTexture2D {
+    state := int(on) * (1 << len(Cardinal))
     
     for connected, dir in connections {
         if connected {

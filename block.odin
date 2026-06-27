@@ -1,6 +1,7 @@
 package voxel_game
 import rl "vendor:raylib"
 import rlgl "vendor:raylib/rlgl"
+import "core:fmt"
 
 //RENDER
 block_model: rl.Model
@@ -9,7 +10,7 @@ decal_model: rl.Model
 block_model_bbox: rl.BoundingBox
 slab_model_bbox: rl.BoundingBox
 decal_model_bbox: rl.BoundingBox
-redstone_render_texture: [(1<<len(Direction))*2]rl.RenderTexture2D
+redstone_render_texture: [(1<<len(Cardinal))*2]rl.RenderTexture2D
 
 Block_Type :: enum {
     Air, Dirt, Stone, Cobblestone, Glass, Planks,
@@ -25,6 +26,8 @@ Block_Flag :: enum {
     TEXTURE_TRANSPARENT,
     STATEFUL,
     NO_COLLISION,
+    HAS_CARDINAL,
+    HAS_BLOCK_FACE,
 }
 Block_Texture :: union {BlockT_Cube, BlockT_Double}
 BlockT_Cube :: struct {
@@ -41,8 +44,8 @@ block_infos := [Block_Type]Block_Info {
         flags = {},
     },
     .Dirt = {
-        flags = {},
-        texture = BlockT_Cube{path="assets/dirt.png"},
+        flags = {.HAS_CARDINAL, .HAS_BLOCK_FACE},
+        texture = BlockT_Cube{path="assets/test.png"},
         model = .Cube,
     },
     .Stone = {
@@ -70,7 +73,7 @@ block_infos := [Block_Type]Block_Info {
         model = .Decal,
     },
     .Slab = {
-        flags = {},
+        flags = {.HAS_BLOCK_FACE, .HAS_CARDINAL},
         texture = BlockT_Double{path_side="assets/slab_side.png", path_cap="assets/slab_top.png"},
         model = .Slab,
     }
@@ -96,13 +99,18 @@ Block :: struct {
     type: Block_Type,
     data: Block_Data,
 }
-Block_Data :: struct #raw_union {
+Block_Data :: struct {
+    direction: Cardinal,
+    facing: Block_Face,
+    using uniqe: Block_Data_Uniqe,
+}
+Block_Data_Uniqe :: struct #raw_union {
     redstone: Redstone,
 }
 Redstone :: struct {
     on: bool,
-    rotation: Face,
-    connections: [Direction]bool,
+    rotation: Block_Face,
+    connections: [Cardinal]bool,
 }
 
 block_place :: proc() {
@@ -119,6 +127,16 @@ block_place :: proc() {
     raycast()
 }
 place_base_block :: proc(block: Block) {
+    block := block
+    info := block_infos[block.type]
+    if .HAS_CARDINAL in info.flags {
+        block.data.direction = state.place_block_direction
+        fmt.println("direction:", block.data.direction)
+    }
+    if .HAS_BLOCK_FACE in info.flags {
+        block.data.facing = state.place_block_face
+        fmt.println("facing:", block.data.facing)
+    }
     world_set_block(state.place_block_index, block)
 }
 place_redstone :: proc() {

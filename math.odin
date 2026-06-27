@@ -1,7 +1,7 @@
 package voxel_game
 
-Face :: enum{Front, Back, Right, Left, Up, Down}
-Direction :: enum{Up, Down, Right, Left}
+Block_Face :: enum{Top, Bottom, North, South, East, West}
+Cardinal :: enum{North, South, East, West}
 
 fix_normal :: proc(vec: Vec3) -> (res: Vec3) {
     biggest_i: int
@@ -22,26 +22,26 @@ fix_normal :: proc(vec: Vec3) -> (res: Vec3) {
     return
 }
 
-normal_to_face :: proc(vec: Vec3) -> Face {
+normal_to_face :: proc(vec: Vec3) -> Block_Face {
     switch vec {
-    case {0, 0, 1}: return .Front
-    case {0, 0, -1}: return .Back
-    case {1, 0, 0}: return .Right
-    case {-1, 0, 0}: return .Left
-    case {0, 1, 0}: return .Up
-    case {0, -1, 0}: return .Down
+    case {0, 0, 1}: return .South
+    case {0, 0, -1}: return .North
+    case {1, 0, 0}: return .East
+    case {-1, 0, 0}: return .West
+    case {0, 1, 0}: return .Top
+    case {0, -1, 0}: return .Bottom
     }
     return {}
 }
 
-face_to_normal :: proc(side: Face) -> Vec3 {
+face_to_normal :: proc(side: Block_Face) -> Vec3 {
     switch side {
-    case .Front: return {0, 0, 1}
-    case .Back: return {0, 0, -1}
-    case .Right: return {1, 0, 0}
-    case .Left: return {-1, 0, 0}
-    case .Up: return {0, 1, 0}
-    case .Down: return {0, -1, 0}
+    case .South: return {0, 0, 1}
+    case .North: return {0, 0, -1}
+    case .East: return {1, 0, 0}
+    case .West: return {-1, 0, 0}
+    case .Top: return {0, 1, 0}
+    case .Bottom: return {0, -1, 0}
     }
     return {}
 }
@@ -82,22 +82,22 @@ restore_normal :: proc(ignore_normal: Vec3, local_dir: Vec2) -> Vec3 {
     return {}
 }
 
-normal_to_direction :: proc(normal: Vec2) -> Direction {
+normal_to_direction :: proc(normal: Vec2) -> Cardinal {
     switch normal{
-    case {0,-1}: return .Up
-    case {0,1}: return .Down
-    case {1,0}: return .Right
-    case {-1,0}: return .Left
+    case {0,-1}: return .North
+    case {0,1}: return .South
+    case {1,0}: return .East
+    case {-1,0}: return .West
     }
     return {}
 }
 
-direction_to_normal :: proc(dir: Direction) -> Vec2 {
+direction_to_normal :: proc(dir: Cardinal) -> Vec2 {
     switch dir{
-    case .Up: return {0,-1}
-    case .Down: return {0,1}
-    case .Right: return {1,0}
-    case .Left: return {-1,0}
+    case .North: return {0,-1}
+    case .South: return {0,1}
+    case .East: return {1,0}
+    case .West: return {-1,0}
     }
     return {}
 }

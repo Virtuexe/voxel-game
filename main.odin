@@ -10,6 +10,38 @@ import "core:math/linalg"
 
 import ui "./raylib-ui"
 
+get_block_transform :: proc(block: Block) -> rl.Matrix {
+    info := block_infos[block.type]
+    rot_mat := rl.MatrixRotateX(0)
+    
+    if .HAS_CARDINAL in info.flags {
+        angle: f32 = 0
+        switch block.data.direction {
+        case .North: angle = 0
+        case .East: angle = -rl.PI/2
+        case .South: angle = rl.PI
+        case .West: angle = rl.PI/2
+        }
+        if angle != 0 do rot_mat = rl.MatrixRotateY(angle) * rot_mat
+    }
+    
+    if .HAS_BLOCK_FACE in info.flags {
+        angle: f32 = 0
+        axis := Vec3{1,0,0}
+        switch block.data.facing {
+        case .Bottom: angle = 0; axis = {1,0,0}
+        case .Top: angle = rl.PI; axis = {1,0,0}
+        case .South: angle = -rl.PI/2; axis = {1,0,0}
+        case .North: angle = rl.PI/2; axis = {1,0,0}
+        case .East: angle = rl.PI/2; axis = {0,0,1}
+        case .West: angle = -rl.PI/2; axis = {0,0,1}
+        }
+        if angle != 0 do rot_mat = rl.MatrixRotate(axis, angle) * rot_mat
+    }
+    
+    return rot_mat
+}
+
 Vec2 :: rl.Vector2
 Vec3 :: rl.Vector3
 
@@ -221,7 +253,6 @@ update :: proc() {
                 b_max := block_pos + model_bbox.max
 
                 feet_y := state.cam.position.y - state.collider_offset.y
-                if i != 1 do fmt.println(state.is_grounded, b_max.y - feet_y <= 0.6, b_max.y > feet_y)
                 if i != 1 && was_grounded && b_max.y - feet_y <= 0.6 && b_max.y > feet_y {
                     test_pos := state.cam.position
                     test_pos.y = b_max.y + state.collider_offset.y
@@ -274,6 +305,10 @@ draw :: proc() {
                     model_to_draw = decal_model
                 }
                 
+                old_transform := model_to_draw.transform
+                rot_mat := get_block_transform(block)
+                model_to_draw.transform = old_transform * rot_mat
+                
                 tex := info.texture
                 if block.type == .Redstone {
                     redstone := block.data.redstone
@@ -301,13 +336,20 @@ draw :: proc() {
         if info.model != .Decal {
             model_to_draw := info.model == .Slab ? slab_model : block_model
             bbox := info.model == .Slab ? slab_model_bbox : block_model_bbox
+            
+            rot_mat := get_block_transform(block)
+            old_transform := model_to_draw.transform
+            model_to_draw.transform = old_transform * rot_mat
+            
             model_center := (bbox.min + bbox.max) / 2.0
+            model_center = rl.Vector3Transform(model_center, rot_mat)
             adjusted_pos := pos + model_center * (1.0 - 1.001)
             
             rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, white_texture)
             rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, white_texture)
             
             rl.DrawModel(model_to_draw, adjusted_pos, 1.001, rl.Color{255, 255, 255, 100})
+            model_to_draw.transform = old_transform
         } else {
             rl.DrawCube(pos, 1.001, 1.001, 1.001, rl.Color{255, 255, 255, 100})
         }
@@ -393,7 +435,7 @@ raycast :: proc() {
         face_normal := fix_normal(face_hit)
 
         state.place_block_face_normal = normal
-        state.place_block_face = normal_to_face(normal)
+        state.place_block_face = normal_to_face(-normal)
         state.place_block_direction_normal = face_normal
         state.place_block_direction_normal_2d = ignore_normal(normal, face_normal)
         state.place_block_direction = normal_to_direction(state.place_block_direction_normal_2d)
