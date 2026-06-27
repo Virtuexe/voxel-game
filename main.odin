@@ -84,6 +84,21 @@ is_player_supported :: proc(pos: Vec3) -> bool {
     return false
 }
 
+is_player_colliding :: proc(pos: Vec3) -> bool {
+    for c_pos, chunk in world.chunks {
+        for block_key, block_i in chunk.block_keys {
+            if block_key == 0 do continue
+            l_pos := unflatten(block_i)
+            global_pos := get_global_pos(c_pos, l_pos)
+            block := chunk.palette[block_key]
+            if is_overlapping(pos, global_pos, block) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
 update :: proc() {
     calc_window()
     delta := get_delta()
@@ -216,6 +231,16 @@ update :: proc() {
                 }
                 b_min := block_pos + model_bbox.min
                 b_max := block_pos + model_bbox.max
+
+                feet_y := state.cam.position.y - state.collider_offset.y
+                if i != 1 && state.is_grounded && b_max.y - feet_y <= 0.6 && b_max.y > feet_y {
+                    test_pos := state.cam.position
+                    test_pos.y = b_max.y + state.collider_offset.y
+                    if !is_player_colliding(test_pos) {
+                        state.cam.position.y = test_pos.y
+                        continue
+                    }
+                }
 
                 if movement[i] < 0 {
                     state.cam.position[i] = b_max[i] + state.collider_offset[i]
