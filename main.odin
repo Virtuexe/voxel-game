@@ -91,7 +91,7 @@ init :: proc() {
 
     world_init()
 
-    state.block_in_hand = {.Dirt, {}}
+    state.held_block = {.Dirt, {}}
 
     state.apply_gravity = true
     state.is_flying = false
@@ -167,34 +167,34 @@ update :: proc() {
     //INTERACTION
     if state.use_key_input {
         if rl.IsKeyDown(.ONE) {
-            state.block_in_hand = {.Dirt, {}}
+            state.held_block = {.Dirt, {}}
         }
         if rl.IsKeyDown(.TWO) {
-            state.block_in_hand = {.Stone, {}}
+            state.held_block = {.Stone, {}}
         }
         if rl.IsKeyDown(.THREE) {
-            state.block_in_hand = {.Cobblestone, {}}
+            state.held_block = {.Cobblestone, {}}
         }
         if rl.IsKeyDown(.FOUR) {
-            state.block_in_hand = {.Glass, {}}
+            state.held_block = {.Glass, {}}
         }
         if rl.IsKeyDown(.FIVE) {
-            state.block_in_hand = {.Planks, {}}
+            state.held_block = {.Planks, {}}
         }
         if rl.IsKeyDown(.SIX) {
-            state.block_in_hand = {.Redstone, {}}
+            state.held_block = {.Redstone, {}}
         }
         if rl.IsKeyDown(.SEVEN) {
-            state.block_in_hand = {.Slab, {}}
+            state.held_block = {.Slab, {}}
         }
     }
 
     if state.use_mouse_input {
-        if rl.IsMouseButtonPressed(.LEFT) && state.has_target_block {
-            world_set_block(state.target_block, Block{.Air, {}})
+        if rl.IsMouseButtonPressed(.LEFT) && state.looking_at_block {
+            world_set_block(state.look_target, Block{.Air, {}})
             raycast()
         }
-        if rl.IsMouseButtonPressed(.RIGHT) && state.has_target_block {
+        if rl.IsMouseButtonPressed(.RIGHT) && state.looking_at_block {
             block_place()
         }
     }
@@ -313,9 +313,9 @@ draw :: proc() {
         }
     }
     
-    if state.has_target_block {
-        pos := to_vec3(state.target_block)
-        block := world_get_block(state.target_block)
+    if state.looking_at_block {
+        pos := to_vec3(state.look_target)
+        block := world_get_block(state.look_target)
         info := block_infos[block.type]
         
         if info.model != .Decal {
@@ -376,7 +376,7 @@ raycast :: proc() {
     ray := rl.GetScreenToWorldRay(center, state.cam)
 
     closest_hit = rl.RayCollision{ distance = 5.0 }
-    state.has_target_block = false
+    state.looking_at_block = false
 
     for c_pos, chunk in world.chunks {
         for block_key, i in chunk.block_keys {
@@ -393,25 +393,25 @@ raycast :: proc() {
 
             if hit.hit && hit.distance < closest_hit.distance {
                 closest_hit = hit
-                state.has_target_block = true
-                state.target_block = global_pos
-                state.place_block = block_pos + closest_hit.normal
-                state.place_block_index = from_vec3(state.place_block)
+                state.looking_at_block = true
+                state.look_target = global_pos
+                state.place_pos = block_pos + closest_hit.normal
+                state.place_target = from_vec3(state.place_pos)
             }
         }
     }
-    if state.has_target_block {
-        pos := to_vec3(state.target_block)
+    if state.looking_at_block {
+        pos := to_vec3(state.look_target)
         normal := fix_normal(closest_hit.normal)
         local_hit := closest_hit.point - pos
         face_hit := local_hit - local_hit*normal*normal
         face_normal := fix_normal(face_hit)
 
-        state.place_block_face_normal = normal
-        state.place_block_face = normal_to_face(-normal)
-        state.place_block_direction_normal = face_normal
-        state.place_block_direction_normal_2d = ignore_normal(normal, face_normal)
-        state.place_block_direction = normal_to_direction(state.place_block_direction_normal_2d)
+        state.hit_normal = normal
+        state.hit_face = normal_to_face(-normal)
+        state.place_dir_normal = face_normal
+        state.place_dir_normal_2d = ignore_normal(normal, face_normal)
+        state.place_dir = normal_to_direction(state.place_dir_normal_2d)
     }
 }
 draw_xyz :: proc() {

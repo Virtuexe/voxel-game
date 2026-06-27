@@ -25,16 +25,16 @@ Player_Input :: struct {
 }
 
 Player_Interaction :: struct {
-    block_in_hand: Block,
-    has_target_block: bool,
-    target_block: [3]i32,
-    place_block: Vec3,
-    place_block_index: [3]i32,
-    place_block_face_normal: Vec3,
-    place_block_direction_normal: Vec3,
-    place_block_direction_normal_2d: Vec2,
-    place_block_face: Block_Face,
-    place_block_direction: Cardinal,
+    held_block: Block,
+    looking_at_block: bool,
+    look_target: [3]i32,
+    place_pos: Vec3,
+    place_target: [3]i32,
+    hit_normal: Vec3,
+    place_dir_normal: Vec3,
+    place_dir_normal_2d: Vec2,
+    hit_face: Block_Face,
+    place_dir: Cardinal,
 }
 
 Player_Collider :: struct {
@@ -81,7 +81,7 @@ state := State {
     },
     
     interaction = {
-        has_target_block = false,
+        looking_at_block = false,
     },
     
     collider = {

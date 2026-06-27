@@ -178,9 +178,9 @@ Redstone :: struct {
 }
 
 block_place :: proc() {
-    block := state.block_in_hand
-    if is_overlapping(state.cam.position, state.place_block_index, block) do return
-    if world_get_block(state.place_block_index).type != .Air do return
+    block := state.held_block
+    if is_overlapping(state.cam.position, state.place_target, block) do return
+    if world_get_block(state.place_target).type != .Air do return
     #partial switch block.type {
     case .Redstone:
         place_redstone()
@@ -193,28 +193,28 @@ place_base_block :: proc(block: Block) {
     block := block
     info := block_infos[block.type]
     if .HAS_CARDINAL in info.flags {
-        block.data.direction = state.place_block_direction
+        block.data.direction = state.place_dir
         fmt.println("direction:", block.data.direction)
     }
     if .HAS_BLOCK_FACE in info.flags {
-        block.data.facing = state.place_block_face
+        block.data.facing = state.hit_face
         fmt.println("facing:", block.data.facing)
     }
-    world_set_block(state.place_block_index, block)
+    world_set_block(state.place_target, block)
 }
 place_redstone :: proc() {
-    pos1 := state.place_block
-    pos2 := pos1 + state.place_block_direction_normal
-    pos1_i := state.place_block_index
+    pos1 := state.place_pos
+    pos2 := pos1 + state.place_dir_normal
+    pos1_i := state.place_target
     pos2_i := from_vec3(pos2)
-    dir1 := state.place_block_direction
-    dir2 := normal_to_direction(-state.place_block_direction_normal_2d)
+    dir1 := state.place_dir
+    dir2 := normal_to_direction(-state.place_dir_normal_2d)
 
-    redstone := Block{.Redstone, {redstone={true, state.place_block_face, {}}}}
+    redstone := Block{.Redstone, {redstone={true, state.hit_face, {}}}}
     redstone.data.redstone.connections[dir1] = true
     world_set_block(pos1_i, redstone)
 
-    redstone2 := Block{.Redstone, {redstone={true, state.place_block_face, {}}}}
+    redstone2 := Block{.Redstone, {redstone={true, state.hit_face, {}}}}
     redstone2.data.redstone.connections[dir2] = true
     world_set_block(pos2_i, redstone2)
 }
