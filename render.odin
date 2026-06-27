@@ -85,11 +85,27 @@ init_block_model :: proc() {
 
 init_slab_model :: proc() {
     slab_model = make_multi_material_model(true)
+    for i in 0..<slab_model.meshCount {
+        mesh := &slab_model.meshes[i]
+        vertices := cast([^]f32)mesh.vertices
+        for v in 0..<mesh.vertexCount {
+            vertices[v * 3 + 1] -= 0.25
+        }
+        rl.UpdateMeshBuffer(mesh^, 0, mesh.vertices, mesh.vertexCount * 3 * size_of(f32), 0)
+    }
     slab_model_bbox = rl.GetModelBoundingBox(slab_model)
 }
 
 init_decal_model :: proc() {
     decal_model = rl.LoadModelFromMesh(rl.GenMeshPlane(1, 1, 1, 1))
+    for i in 0..<decal_model.meshCount {
+        mesh := &decal_model.meshes[i]
+        vertices := cast([^]f32)mesh.vertices
+        for v in 0..<mesh.vertexCount {
+            vertices[v * 3 + 1] -= 0.499
+        }
+        rl.UpdateMeshBuffer(mesh^, 0, mesh.vertices, mesh.vertexCount * 3 * size_of(f32), 0)
+    }
     decal_model_bbox = rl.GetModelBoundingBox(decal_model)
     
     img := rl.GenImageColor(1, 1, rl.WHITE)

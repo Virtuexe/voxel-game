@@ -214,10 +214,8 @@ update :: proc() {
                 model_bbox := block_model_bbox
                 if info.model == .Slab {
                     model_bbox = slab_model_bbox
-                    block_pos.y -= 0.25
                 } else if info.model == .Decal {
                     model_bbox = decal_model_bbox
-                    block_pos.y -= 0.499
                 }
                 b_min := block_pos + model_bbox.min
                 b_max := block_pos + model_bbox.max
@@ -271,10 +269,8 @@ draw :: proc() {
                 model_to_draw := block_model
                 if info.model == .Slab {
                     model_to_draw = slab_model
-                    p.y -= 0.25
                 } else if info.model == .Decal {
                     model_to_draw = decal_model
-                    p.y -= 0.499
                 }
                 
                 tex := info.texture
@@ -303,12 +299,14 @@ draw :: proc() {
         
         if info.model != .Decal {
             model_to_draw := info.model == .Slab ? slab_model : block_model
+            bbox := info.model == .Slab ? slab_model_bbox : block_model_bbox
+            model_center := (bbox.min + bbox.max) / 2.0
+            adjusted_pos := pos + model_center * (1.0 - 1.001)
             
             rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, white_texture)
             rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, white_texture)
             
-            if info.model == .Slab do pos.y -= 0.25
-            rl.DrawModel(model_to_draw, pos, 1.001, rl.Color{255, 255, 255, 100})
+            rl.DrawModel(model_to_draw, adjusted_pos, 1.001, rl.Color{255, 255, 255, 100})
         } else {
             rl.DrawCube(pos, 1.001, 1.001, 1.001, rl.Color{255, 255, 255, 100})
         }
@@ -369,10 +367,8 @@ raycast :: proc() {
             model_bbox := block_model_bbox
             if info.model == .Slab {
                 model_bbox = slab_model_bbox
-                block_pos.y -= 0.25
             } else if info.model == .Decal {
                 model_bbox = decal_model_bbox
-                block_pos.y -= 0.499
             }
             
             bbox := rl.BoundingBox{block_pos + model_bbox.min, block_pos + model_bbox.max}
@@ -446,10 +442,8 @@ is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block) -> bool {
     model_bbox := block_model_bbox
     if info.model == .Slab {
         model_bbox = slab_model_bbox
-        block_pos.y -= 0.25
     } else if info.model == .Decal {
         model_bbox = decal_model_bbox
-        block_pos.y -= 0.499
     }
     
     b_min := block_pos + model_bbox.min
