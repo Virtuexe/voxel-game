@@ -221,7 +221,8 @@ update :: proc() {
                 b_max := block_pos + model_bbox.max
 
                 feet_y := state.cam.position.y - state.collider_offset.y
-                if i != 1 && state.is_grounded && b_max.y - feet_y <= 0.6 && b_max.y > feet_y {
+                if i != 1 do fmt.println(state.is_grounded, b_max.y - feet_y <= 0.6, b_max.y > feet_y)
+                if i != 1 && was_grounded && b_max.y - feet_y <= 0.6 && b_max.y > feet_y {
                     test_pos := state.cam.position
                     test_pos.y = b_max.y + state.collider_offset.y
                     if !is_player_colliding(test_pos) {
