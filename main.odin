@@ -242,13 +242,7 @@ update :: proc() {
             block_pos := to_vec3(global_pos)
             if !is_overlapping(state.cam.position, global_pos, block) do continue
 
-                info := block_infos[block.type]
-                model_bbox := block_model_bbox
-                if info.model == .Slab {
-                    model_bbox = slab_model_bbox
-                } else if info.model == .Decal {
-                    model_bbox = decal_model_bbox
-                }
+                model_bbox := get_block_bbox(block)
                 b_min := block_pos + model_bbox.min
                 b_max := block_pos + model_bbox.max
 
@@ -298,16 +292,7 @@ draw :: proc() {
                 l_pos := unflatten(i)
                 global_pos := get_global_pos(c_pos, l_pos)
                 p := to_vec3(global_pos)
-                model_to_draw := block_model
-                if info.model == .Slab {
-                    model_to_draw = slab_model
-                } else if info.model == .Decal {
-                    model_to_draw = decal_model
-                }
-                
-                old_transform := model_to_draw.transform
-                rot_mat := get_block_transform(block)
-                model_to_draw.transform = old_transform * rot_mat
+                model_to_draw := get_block_model(block)
                 
                 tex := info.texture
                 if block.type == .Redstone {
@@ -334,22 +319,16 @@ draw :: proc() {
         info := block_infos[block.type]
         
         if info.model != .Decal {
-            model_to_draw := info.model == .Slab ? slab_model : block_model
-            bbox := info.model == .Slab ? slab_model_bbox : block_model_bbox
-            
-            rot_mat := get_block_transform(block)
-            old_transform := model_to_draw.transform
-            model_to_draw.transform = old_transform * rot_mat
+            model_to_draw := get_block_model(block)
+            bbox := get_block_bbox(block)
             
             model_center := (bbox.min + bbox.max) / 2.0
-            model_center = rl.Vector3Transform(model_center, rot_mat)
             adjusted_pos := pos + model_center * (1.0 - 1.001)
             
             rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, white_texture)
             rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, white_texture)
             
             rl.DrawModel(model_to_draw, adjusted_pos, 1.001, rl.Color{255, 255, 255, 100})
-            model_to_draw.transform = old_transform
         } else {
             rl.DrawCube(pos, 1.001, 1.001, 1.001, rl.Color{255, 255, 255, 100})
         }
@@ -406,14 +385,8 @@ raycast :: proc() {
             global_pos := get_global_pos(c_pos, l_pos)
             block_pos := to_vec3(global_pos)
             
-            info := block_infos[chunk.palette[block_key].type]
-            model_bbox := block_model_bbox
-            if info.model == .Slab {
-                model_bbox = slab_model_bbox
-            } else if info.model == .Decal {
-                model_bbox = decal_model_bbox
-            }
-            
+            block := chunk.palette[block_key]
+            model_bbox := get_block_bbox(block)
             bbox := rl.BoundingBox{block_pos + model_bbox.min, block_pos + model_bbox.max}
 
             hit := rl.GetRayCollisionBox(ray, bbox)
@@ -482,12 +455,7 @@ is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block) -> bool {
 
     p_min := player - state.collider_offset
     p_max := p_min + state.collider_size
-    model_bbox := block_model_bbox
-    if info.model == .Slab {
-        model_bbox = slab_model_bbox
-    } else if info.model == .Decal {
-        model_bbox = decal_model_bbox
-    }
+    model_bbox := get_block_bbox(block)
     
     b_min := block_pos + model_bbox.min
     b_max := block_pos + model_bbox.max

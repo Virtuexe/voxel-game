@@ -44,8 +44,8 @@ block_infos := [Block_Type]Block_Info {
         flags = {},
     },
     .Dirt = {
-        flags = {.HAS_CARDINAL, .HAS_BLOCK_FACE},
-        texture = BlockT_Cube{path="assets/test.png"},
+        flags = {},
+        texture = BlockT_Cube{path="assets/dirt.png"},
         model = .Cube,
     },
     .Stone = {
@@ -73,7 +73,7 @@ block_infos := [Block_Type]Block_Info {
         model = .Decal,
     },
     .Slab = {
-        flags = {.HAS_BLOCK_FACE, .HAS_CARDINAL},
+        flags = {.HAS_BLOCK_FACE},
         texture = BlockT_Double{path_side="assets/slab_side.png", path_cap="assets/slab_top.png"},
         model = .Slab,
     }
@@ -93,6 +93,70 @@ block_init :: proc() {
     }
 }
 //TODO unload textures
+
+// Returns the base model for a block type (no transform applied)
+get_base_model :: proc(block: Block) -> rl.Model {
+    info := block_infos[block.type]
+    switch info.model {
+    case .Slab:   return slab_model
+    case .Decal:  return decal_model
+    case .Cube:   return block_model
+    }
+    return block_model
+}
+
+// Returns the base bounding box for a block type (unrotated, local space)
+get_base_bbox :: proc(block: Block) -> rl.BoundingBox {
+    info := block_infos[block.type]
+    switch info.model {
+    case .Slab:   return slab_model_bbox
+    case .Decal:  return decal_model_bbox
+    case .Cube:   return block_model_bbox
+    }
+    return block_model_bbox
+}
+
+// Returns the model with the correct rotation transform applied.
+// Caller should restore model.transform after drawing if needed.
+get_block_model :: proc(block: Block) -> rl.Model {
+    model := get_base_model(block)
+    rot_mat := get_block_transform(block)
+    model.transform = model.transform * rot_mat
+    return model
+}
+
+// Returns an axis-aligned bounding box for the block in local space,
+// accounting for rotation. Safe to add block_pos to get world-space AABB.
+get_block_bbox :: proc(block: Block) -> rl.BoundingBox {
+    base := get_base_bbox(block)
+    rot_mat := get_block_transform(block)
+
+    // Transform all 8 corners of the base AABB through the rotation matrix
+    // and compute a new AABB that encloses all of them.
+    corners := [8]Vec3{
+        {base.min.x, base.min.y, base.min.z},
+        {base.max.x, base.min.y, base.min.z},
+        {base.min.x, base.max.y, base.min.z},
+        {base.max.x, base.max.y, base.min.z},
+        {base.min.x, base.min.y, base.max.z},
+        {base.max.x, base.min.y, base.max.z},
+        {base.min.x, base.max.y, base.max.z},
+        {base.max.x, base.max.y, base.max.z},
+    }
+
+    new_min := rl.Vector3Transform(corners[0], rot_mat)
+    new_max := new_min
+    for i in 1..<8 {
+        t := rl.Vector3Transform(corners[i], rot_mat)
+        new_min.x = min(new_min.x, t.x)
+        new_min.y = min(new_min.y, t.y)
+        new_min.z = min(new_min.z, t.z)
+        new_max.x = max(new_max.x, t.x)
+        new_max.y = max(new_max.y, t.y)
+        new_max.z = max(new_max.z, t.z)
+    }
+    return rl.BoundingBox{new_min, new_max}
+}
 
 //GAMEPLAY
 Block :: struct {
@@ -115,9 +179,8 @@ Redstone :: struct {
 
 block_place :: proc() {
     block := state.block_in_hand
-    if is_overlapping(state.cam.position, state.place_block_index, block) {
-        return
-    }
+    if is_overlapping(state.cam.position, state.place_block_index, block) do return
+    if world_get_block(state.place_block_index).type != .Air do return
     #partial switch block.type {
     case .Redstone:
         place_redstone()
