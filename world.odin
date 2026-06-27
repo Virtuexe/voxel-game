@@ -73,3 +73,34 @@ world_set_block :: proc(pos: [3]i32, block: Block) {
     block_key := chunk_provide_block_key(chunk, block)
     chunk.block_keys[flatten(l_pos)] = block_key
 }
+
+Player_Block_Iterator :: struct {
+    center: [3]i32,
+    curr: [3]i32,
+}
+
+make_player_block_iterator :: proc(center: [3]i32) -> Player_Block_Iterator {
+    return {
+        center = center,
+        curr = {center.x - 1, center.y - 1, center.z - 1},
+    }
+}
+
+player_block_iterator_next :: proc(it: ^Player_Block_Iterator) -> (block: Block, coords: [3]i32, cond: bool) {
+    if it.curr.x > it.center.x + 1 do return {}, {}, false
+
+    coords = it.curr
+    block = world_get_block(coords)
+    cond = true
+
+    it.curr.z += 1
+    if it.curr.z > it.center.z + 1 {
+        it.curr.z = it.center.z - 1
+        it.curr.y += 1
+        if it.curr.y > it.center.y + 2 {
+            it.curr.y = it.center.y - 1
+            it.curr.x += 1
+        }
+    }
+    return
+}

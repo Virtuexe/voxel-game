@@ -73,15 +73,10 @@ is_player_colliding :: proc(pos: Vec3) -> bool {
         i32(math.floor(pos.y - state.collider_offset.y)), 
         i32(math.floor(pos.z))
     }
-    for x in center.x - 1 ..= center.x + 1 {
-        for y in center.y - 1 ..= center.y + 2 {
-            for z in center.z - 1 ..= center.z + 1 {
-                global_pos := [3]i32{x, y, z}
-                block := world_get_block(global_pos)
-                if is_overlapping(pos, global_pos, block) {
-                    return true
-                }
-            }
+    it := make_player_block_iterator(center)
+    for block, global_pos in player_block_iterator_next(&it) {
+        if is_overlapping(pos, global_pos, block) {
+            return true
         }
     }
     return false
@@ -210,13 +205,10 @@ update :: proc() {
             i32(math.floor(state.cam.position.y - state.collider_offset.y)), 
             i32(math.floor(state.cam.position.z))
         }
-        collision_loop: for x in center.x - 1 ..= center.x + 1 {
-            for y in center.y - 1 ..= center.y + 2 {
-                for z in center.z - 1 ..= center.z + 1 {
-                    global_pos := [3]i32{x, y, z}
-                    block_pos := to_vec3(global_pos)
-                    block := world_get_block(global_pos)
-                if !is_overlapping(state.cam.position, global_pos, block) do continue
+        it := make_player_block_iterator(center)
+        for block, global_pos in player_block_iterator_next(&it) {
+            block_pos := to_vec3(global_pos)
+            if !is_overlapping(state.cam.position, global_pos, block) do continue
 
                 info := block_infos[block.type]
                 model_bbox := block_model_bbox
@@ -251,9 +243,7 @@ update :: proc() {
                     state.is_grounded = true
                     state.velocity.y = 0
                 }
-                break collision_loop
-                }
-            }
+                break
         }
     }
     state.last_position = state.cam.position
