@@ -63,7 +63,7 @@ main :: proc() {
     rl.SetTraceLogLevel(.WARNING)
     rl.SetWindowState({.WINDOW_RESIZABLE})
     rl.InitWindow(800, 500, "Game")
-    rl.SetTargetFPS(60)
+    rl.SetTargetFPS(120)
     rl.SetExitKey(rl.KeyboardKey.KEY_NULL)
 
     init()
@@ -336,11 +336,34 @@ draw :: proc() {
                         tile_size : f32 = 0.5
                         num_tiles := int(total_dist / tile_size)
                         step      := total_dist / f32(max(num_tiles, 1))
-                        tex_rec   := rl.Rectangle{0, 0, f32(arrow_texture.width), f32(arrow_texture.height)}
+                        half      := tile_size * 0.5
+                        up        := Vec3{0, 1, 0}
+
+                        rlgl.DisableBackfaceCulling()
+                        rlgl.SetTexture(arrow_texture.id)
+                        rlgl.Begin(rlgl.QUADS)
+                        rlgl.Color4ub(255, 255, 255, 255)
                         for t in 0..=num_tiles {
-                            t_pos := from_center + dir * (f32(t) * step + step * 0.5)
-                            rl.DrawBillboardRec(state.cam, arrow_texture, tex_rec, t_pos, {tile_size, tile_size}, rl.WHITE)
+                            c := from_center + dir * (f32(t) * step + step * 0.5)
+                            // Quad corners: U axis = dir (U=0 at source side, U=1 at dest side), V axis = world up
+                            bl := c - dir*half - up*half
+                            br := c + dir*half - up*half
+                            tr := c + dir*half + up*half
+                            tl := c - dir*half + up*half
+                            // Front face (facing the normal side)
+                            rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
+                            rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
+                            rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
+                            rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
+                            // Back face (mirrored U so texture reads correctly from behind)
+                            rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
+                            rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
+                            rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
+                            rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
                         }
+                        rlgl.End()
+                        rlgl.SetTexture(0)
+                        rlgl.EnableBackfaceCulling()
                     }
                 }
             }

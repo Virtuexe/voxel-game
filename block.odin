@@ -198,11 +198,9 @@ place_base_block :: proc(block: Block) {
     info := block_infos[block.type]
     if .HAS_CARDINAL in info.flags {
         block.data.direction = state.place_dir
-        fmt.println("direction:", block.data.direction)
     }
     if .HAS_BLOCK_FACE in info.flags {
         block.data.facing = state.hit_face
-        fmt.println("facing:", block.data.facing)
     }
     world_set_block(state.place_target, block)
 }

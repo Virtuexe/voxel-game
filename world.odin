@@ -13,18 +13,11 @@ world_init :: proc() {
     world = &state.world
     world.chunks = make(map[[3]i32]^Chunk)
     
-    chunk := new(Chunk)
-    chunk.palette = make([dynamic]Block)
-    append(&chunk.palette, Block{.Air, {}})
-    stone := chunk_provide_block_key(chunk, {.Stone, {}})
-    dirt := chunk_provide_block_key(chunk, {.Dirt, {}})
-    
-    world.chunks[{0, 0, 0}] = chunk
-    for i in 0..<16*16 {
-        x: i32 = i32(i/16)
-        z: i32 = i32(i%16)
-        chunk.block_keys[flatten({x, 0, z})] = stone
-        chunk.block_keys[flatten({x, 1, z})] = dirt
+    for x in -16..<16 {
+        for z in -16..<16 {
+            world_set_block({i32(x), 0, i32(z)}, {.Stone, {}})
+            world_set_block({i32(x), 1, i32(z)}, {.Dirt, {}})
+        }
     }
 }
 
@@ -47,6 +40,36 @@ chunk_get_block_key :: proc(chunk: ^Chunk, block: Block) -> int {
         }
     }
     return -1
+}
+
+// Removes unused blocks from the palette and remaps block keys accordingly
+chunk_clean_palette :: proc(chunk: ^Chunk) {
+    used := make([]bool, len(chunk.palette))
+    defer delete(used)
+    
+    for key in chunk.block_keys {
+        used[key] = true
+    }
+    
+    new_palette := make([dynamic]Block)
+    key_map := make([]int, len(chunk.palette))
+    defer delete(key_map)
+    
+    for i in 0..<len(chunk.palette) {
+        if used[i] {
+            append(&new_palette, chunk.palette[i])
+            key_map[i] = len(new_palette) - 1
+        } else {
+            key_map[i] = -1
+        }
+    }
+    
+    for i in 0..<len(chunk.block_keys) {
+        chunk.block_keys[i] = key_map[chunk.block_keys[i]]
+    }
+    
+    delete(chunk.palette)
+    chunk.palette = new_palette
 }
 
 world_get_block :: proc(pos: [3]i32) -> Block {
