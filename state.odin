@@ -35,6 +35,7 @@ Player_Interaction :: struct {
     place_dir_normal_2d: Vec2,
     hit_face: Block_Face,
     place_dir: Cardinal,
+    select_block_pos: Maybe([3]i32),
 }
 
 Player_Collider :: struct {

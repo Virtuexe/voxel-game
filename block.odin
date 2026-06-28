@@ -166,6 +166,7 @@ Block :: struct {
 Block_Data :: struct {
     direction: Cardinal,
     facing: Block_Face,
+    arrow: Maybe(Arrow),
     using uniqe: Block_Data_Uniqe,
 }
 Block_Data_Uniqe :: struct #raw_union {
@@ -175,6 +176,9 @@ Redstone :: struct {
     on: bool,
     rotation: Block_Face,
     connections: [Cardinal]bool,
+}
+Arrow :: struct {
+    to: [3]i32
 }
 
 block_place :: proc() {

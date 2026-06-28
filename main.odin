@@ -52,6 +52,7 @@ center: [2]f32
 
 CHUNK :: [3]i32{16, 16, 16}
 
+arrow_texture: rl.Texture2D
 crosshair_texture: rl.Texture2D
 // State structs moved to state.odin
 
@@ -85,6 +86,7 @@ main :: proc() {
 init :: proc() {
     calc_window()
 
+    arrow_texture = rl.LoadTexture("assets/arrow.png")
     crosshair_texture = rl.LoadTexture("assets/crosshair.png")
     block_init()
     gen_redstone_textures()
@@ -191,11 +193,24 @@ update :: proc() {
 
     if state.use_mouse_input {
         if rl.IsMouseButtonPressed(.LEFT) && state.looking_at_block {
-            world_set_block(state.look_target, Block{.Air, {}})
+            set_target_block(Block{.Air, {}})
             raycast()
         }
         if rl.IsMouseButtonPressed(.RIGHT) && state.looking_at_block {
-            block_place()
+            if state.is_shifting && state.looking_at_block {
+                if pos, ok := state.select_block_pos.([3]i32); ok {
+                    block := world_get_block(pos)
+                    block.data.arrow = Arrow{state.look_target}
+                    world_set_block(pos, block)
+                    state.select_block_pos = nil
+                }
+                else {
+                    state.select_block_pos = state.look_target
+                }
+            }
+            else {
+                block_place()
+            }
         }
     }
     //MOVEMENT
@@ -309,13 +324,32 @@ draw :: proc() {
                 }
                 
                 rl.DrawModel(model_to_draw, p, 1, rl.WHITE)
+
+                //Arrow
+                if arrow, ok := block.data.arrow.(Arrow); ok {
+                    from_center := p
+                    to_center   := to_vec3(arrow.to)
+                    diff        := to_center - from_center
+                    total_dist  := linalg.length(diff)
+                    if total_dist > 0.001 {
+                        dir       := diff / total_dist
+                        tile_size : f32 = 0.5
+                        num_tiles := int(total_dist / tile_size)
+                        step      := total_dist / f32(max(num_tiles, 1))
+                        tex_rec   := rl.Rectangle{0, 0, f32(arrow_texture.width), f32(arrow_texture.height)}
+                        for t in 0..=num_tiles {
+                            t_pos := from_center + dir * (f32(t) * step + step * 0.5)
+                            rl.DrawBillboardRec(state.cam, arrow_texture, tex_rec, t_pos, {tile_size, tile_size}, rl.WHITE)
+                        }
+                    }
+                }
             }
         }
     }
     
     if state.looking_at_block {
         pos := to_vec3(state.look_target)
-        block := world_get_block(state.look_target)
+        block := get_target_block()
         info := block_infos[block.type]
         
         if info.model != .Decal {
@@ -358,8 +392,6 @@ draw :: proc() {
 
     draw_code()
 }
-
-// Rendering model inits and functions moved to render.odin
 
 get_delta :: proc() -> f32 {
     return min(0.14, rl.GetFrameTime())

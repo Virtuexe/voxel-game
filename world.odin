@@ -86,6 +86,14 @@ make_player_block_iterator :: proc(center: [3]i32) -> Player_Block_Iterator {
     }
 }
 
+get_target_block :: proc() -> Block {
+    return world_get_block(state.look_target)
+}
+
+set_target_block :: proc(block: Block) {
+    world_set_block(state.look_target, block)
+}
+
 player_block_iterator_next :: proc(it: ^Player_Block_Iterator) -> (block: Block, coords: [3]i32, cond: bool) {
     if it.curr.x > it.center.x + 1 do return {}, {}, false
 
