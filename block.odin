@@ -80,6 +80,7 @@ block_infos := [Block_Type]Block_Info {
 }
 
 block_init :: proc() {
+    init_shaders()
     init_block_model()
     init_slab_model()
     init_decal_model()

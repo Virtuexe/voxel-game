@@ -14,6 +14,51 @@ set_face_uvs :: proc(c: [^]f32, face_idx: int, uv_data: [8]f32) {
 }
 
 white_texture: rl.Texture2D
+block_shader: rl.Shader
+
+init_shaders :: proc() {
+    vs := `
+    #version 330
+    in vec3 vertexPosition;
+    in vec2 vertexTexCoord;
+    in vec3 vertexNormal;
+    in vec4 vertexColor;
+    out vec2 fragTexCoord;
+    out vec4 fragColor;
+    out vec3 fragNormal;
+    uniform mat4 mvp;
+    uniform mat4 matModel;
+    void main() {
+        fragTexCoord = vertexTexCoord;
+        fragColor = vertexColor;
+        fragNormal = normalize(vec3(matModel * vec4(vertexNormal, 0.0)));
+        gl_Position = mvp * vec4(vertexPosition, 1.0);
+    }`
+    fs := `
+    #version 330
+    in vec2 fragTexCoord;
+    in vec4 fragColor;
+    in vec3 fragNormal;
+    out vec4 finalColor;
+    uniform sampler2D texture0;
+    uniform vec4 colDiffuse;
+    void main() {
+        vec4 texelColor = texture(texture0, fragTexCoord);
+        if (texelColor.a == 0.0) discard;
+        
+        float light = 1.0;
+        vec3 n = normalize(fragNormal);
+        if (n.y > 0.5) light = 1.0;
+        else if (n.y < -0.5) light = 0.5;
+        else if (abs(n.x) > 0.5) light = 0.6;
+        else if (abs(n.z) > 0.5) light = 0.8;
+        
+        finalColor = texelColor * colDiffuse * fragColor * vec4(light, light, light, 1.0);
+    }`
+    
+    // We can directly cast Odin raw string literals to cstring for raylib
+    block_shader = rl.LoadShaderFromMemory(cstring(raw_data(vs)), cstring(raw_data(fs)))
+}
 
 UV_HALF_ROT_90  :: [8]f32{ 0,1, 1,1, 1,0.5, 0,0.5 }
 UV_HALF_ROT_180 :: [8]f32{ 1,1, 1,0.5, 0,0.5, 0,1 }
@@ -29,6 +74,8 @@ make_multi_material_model :: proc(is_slab: bool) -> rl.Model {
     
     model.materials[0] = rl.LoadMaterialDefault()
     model.materials[1] = rl.LoadMaterialDefault()
+    model.materials[0].shader = block_shader
+    model.materials[1].shader = block_shader
     model.meshMaterial[0] = 0 // Sides use material 0
     model.meshMaterial[1] = 1 // Top/bottom use material 1
     
@@ -98,6 +145,7 @@ init_slab_model :: proc() {
 
 init_decal_model :: proc() {
     decal_model = rl.LoadModelFromMesh(rl.GenMeshPlane(1, 1, 1, 1))
+    decal_model.materials[0].shader = block_shader
     for i in 0..<decal_model.meshCount {
         mesh := &decal_model.meshes[i]
         vertices := cast([^]f32)mesh.vertices

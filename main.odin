@@ -373,22 +373,16 @@ draw :: proc() {
     if state.looking_at_block {
         pos := to_vec3(state.look_target)
         block := get_target_block()
-        info := block_infos[block.type]
         
-        if info.model != .Decal {
-            model_to_draw := get_block_model(block)
-            bbox := get_block_bbox(block)
-            
-            model_center := (bbox.min + bbox.max) / 2.0
-            adjusted_pos := pos + model_center * (1.0 - 1.001)
-            
-            rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, white_texture)
-            rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, white_texture)
-            
-            rl.DrawModel(model_to_draw, adjusted_pos, 1.001, rl.Color{255, 255, 255, 100})
-        } else {
-            rl.DrawCube(pos, 1.001, 1.001, 1.001, rl.Color{255, 255, 255, 100})
-        }
+        bbox := get_block_bbox(block)
+        
+        // Expand slightly to prevent Z-fighting with the block itself, accounting for line thickness
+        t: f32 = 0.01
+        epsilon: f32 = 0//t / 2.0 + 0.001
+        bbox.min += pos - epsilon
+        bbox.max += pos + epsilon
+        
+        draw_bounding_box_thick(bbox, t, rl.Color{0, 0, 0, 150})
     }
     if state.show_debug {
         draw_xyz()
@@ -469,6 +463,37 @@ raycast :: proc() {
         state.place_dir = normal_to_direction(state.place_dir_normal_2d)
     }
 }
+
+draw_bounding_box_thick :: proc(bbox: rl.BoundingBox, t: f32, color: rl.Color) {
+    min := bbox.min
+    max := bbox.max
+    cx := (min.x + max.x) / 2.0
+    cy := (min.y + max.y) / 2.0
+    cz := (min.z + max.z) / 2.0
+    
+    wx := max.x - min.x + t
+    wy := max.y - min.y + t
+    wz := max.z - min.z + t
+    
+    // Bottom edges
+    rl.DrawCubeV({cx, min.y, min.z}, {wx, t, t}, color)
+    rl.DrawCubeV({cx, min.y, max.z}, {wx, t, t}, color)
+    rl.DrawCubeV({min.x, min.y, cz}, {t, t, wz}, color)
+    rl.DrawCubeV({max.x, min.y, cz}, {t, t, wz}, color)
+    
+    // Top edges
+    rl.DrawCubeV({cx, max.y, min.z}, {wx, t, t}, color)
+    rl.DrawCubeV({cx, max.y, max.z}, {wx, t, t}, color)
+    rl.DrawCubeV({min.x, max.y, cz}, {t, t, wz}, color)
+    rl.DrawCubeV({max.x, max.y, cz}, {t, t, wz}, color)
+    
+    // Vertical edges
+    rl.DrawCubeV({min.x, cy, min.z}, {t, wy, t}, color)
+    rl.DrawCubeV({max.x, cy, min.z}, {t, wy, t}, color)
+    rl.DrawCubeV({min.x, cy, max.z}, {t, wy, t}, color)
+    rl.DrawCubeV({max.x, cy, max.z}, {t, wy, t}, color)
+}
+
 draw_xyz :: proc() {
     position := state.cam.target - state.forward*0.9
     length: f32 = 0.02
