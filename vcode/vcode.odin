@@ -4,8 +4,7 @@ import "core:fmt"
 import rl "vendor:raylib"
 
 Block :: struct {
-    pos: ui.Vec,
-    hitbox: ui.Rec,
+    rec: ui.Rec,
     label: Label,
     peg_info: Peg_Info,
 }
@@ -79,7 +78,7 @@ update :: proc() {
     mouse := ui.get_mouse_pos_local(camera)
     if ui.is_mouse_button_pressed(.LEFT) {
         for block, i in blocks {
-            if ui.contains_point(block.hitbox, mouse) {
+            if ui.contains_point(block.rec, mouse) {
                 held_block = i
             }
         }
@@ -101,27 +100,28 @@ update :: proc() {
     }
     if held_block != -1 {
         block := &blocks[held_block]
-        block.pos = mouse - block.label.rec.size/2
+        block.rec.pos = mouse - block.label.rec.size/2
         calculate_block(block)
     }
     try_join_blocks :: proc(block1: ^Block, block2: Block, peg1, peg2: Peg, anchor1, anchor2: ui.Anchor) {
         if ui.overlaps(peg1.hitbox, peg2.hitbox) {
-            ui.localize_vec(&block1.pos, block1.hitbox)
-            ui.align_at(&block1.hitbox, anchor1, block2.hitbox, anchor2)
-            ui.parent_vec(&block1.pos, block1.hitbox)
-            calculate_block(block1)
+            join_blocks(block1, block2, anchor1, anchor2)
         }
+    }
+    join_blocks :: proc(block1: ^Block, block2: Block, anchor1, anchor2: ui.Anchor) {
+        ui.align_at(&block1.rec, anchor1, block2.rec, anchor2)
+        calculate_block(block1)
     }
 }
 calculate_block :: proc(block: ^Block) {
-    block.hitbox.pos = block.pos
-    calculate_label(&block.label, block.pos)
-    block.hitbox.size = block.label.rec.size
-    calculate_peg_info(block)
+    calculate_label(&block.label)
+    block.rec.size = block.label.rec.size
+    offset := calculate_peg_info(&block.peg_info, &block.rec)
+    offset_label(&block.label, block.rec.pos+offset)
 }
-calculate_label :: proc(label: ^Label, pos: ui.Vec) {
-    label.rec.pos = pos
-    pos := pos
+calculate_label :: proc(label: ^Label) {
+    label.rec = {}
+    pos: ui.Vec
     ti, hi: int
     for order in label.order {
         item: ^Label_Item
@@ -143,31 +143,32 @@ calculate_label :: proc(label: ^Label, pos: ui.Vec) {
     }
     label.rec.size = {pos.x-label.rec.pos.x, 0.05}
 }
-// offset_label :: proc(label: ^Label, point: ui.Vec) {
-//     ui.offset_rec(&label.rec, point)
-//     for &h in label.holes {
-//         ui.offset_rec(&h.item.rec, point)
-//     }
-//     for &w in label.words {
-//         ui.offset_rec(&w.item.rec, point)
-//     }
-// }
-calculate_peg_info :: proc(block: ^Block) {
-    info := &block.peg_info
+offset_label :: proc(label: ^Label, point: ui.Vec) {
+    ui.offset_rec(&label.rec, point)
+    for &h in label.holes {
+        ui.offset_rec(&h.item.rec, point)
+    }
+    for &w in label.words {
+        ui.offset_rec(&w.item.rec, point)
+    }
+}
+calculate_peg_info :: proc(info: ^Peg_Info, rec: ^ui.Rec) -> (offset_amount: ui.Vec) {
     dist := f32(0.025)
     height := f32(0.025)
     width := f32(0.02) 
-    ui.resize_anchored(&block.hitbox, .Center, ui.vmax({width, height}))
+    resize_amount := ui.vmax({width, height})
+    ui.resize_anchored(rec, .Top_Left, resize_amount)
+    offset_amount = resize_amount/2
     if peg, ok := &info.top.(Peg); ok {
         peg.rec = {{}, {width,height}}
-        ui.align_at(&peg.rec, .Bottom_Left, block.hitbox, .Top_Left)
+        ui.align_at(&peg.rec, .Bottom_Left, rec^, .Top_Left)
         ui.move(&peg.rec, {dist,0})
         peg.hitbox = peg.rec
         ui.resize_anchored(&peg.hitbox, .Center, peg.rec.size)
     }
     if peg, ok := &info.bottom.(Peg); ok {
         peg.rec = {{}, {width,height}}
-        ui.align(&peg.rec, block.hitbox, .Bottom_Left)
+        ui.align(&peg.rec, rec^, .Bottom_Left)
         ui.move(&peg.rec, {dist,0})
         peg.hitbox = peg.rec
         ui.resize_anchored(&peg.hitbox, .Center, peg.rec.size)
@@ -177,11 +178,12 @@ calculate_peg_info :: proc(block: ^Block) {
     //     peg.rec = ui.move(at, {0,dist})
     //     peg.hitbox = ui.resize(peg.rec, .Center, peg.rec.size)
     // }
+    return
 }
 draw :: proc() {
     ui.begin_draw(&camera)
     for &block in blocks {
-        ui.draw_rec(block.hitbox, ui.GREEN)
+        ui.draw_rec(block.rec, ui.GREEN)
         label := &block.label
         for word in label.words {
             ui.draw_text(word.text, word.style, word.item.rec.pos, ui.WHITE)
