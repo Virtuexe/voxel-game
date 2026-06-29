@@ -7,14 +7,16 @@ import "core:fmt"
 block_model: rl.Model
 slab_model: rl.Model
 decal_model: rl.Model
+stairs_model: rl.Model
 block_model_bbox: rl.BoundingBox
 slab_model_bbox: rl.BoundingBox
 decal_model_bbox: rl.BoundingBox
+stairs_model_bbox: rl.BoundingBox
 redstone_render_texture: [(1<<len(Cardinal))*2]rl.RenderTexture2D
 
 Block_Type :: enum {
     Air, Dirt, Stone, Cobblestone, Glass, Planks,
-    Redstone, Slab,
+    Redstone, Slab, Stairs,
 }
 
 Block_Info :: struct {
@@ -38,7 +40,7 @@ BlockT_Double :: struct {
     path_side, path_cap: cstring,
     side, top: rl.Texture2D,
 }
-Block_Model :: enum {Cube, Slab, Decal}
+Block_Model :: enum {Cube, Slab, Decal, Stairs}
 block_infos := [Block_Type]Block_Info {
     .Air = {
         flags = {},
@@ -76,7 +78,12 @@ block_infos := [Block_Type]Block_Info {
         flags = {.HAS_BLOCK_FACE},
         texture = BlockT_Double{path_side="assets/slab_side.png", path_cap="assets/slab_top.png"},
         model = .Slab,
-    }
+    },
+    .Stairs = {
+        flags = {.HAS_BLOCK_FACE, .HAS_CARDINAL},
+        texture = BlockT_Cube{path="assets/planks.png"},
+        model = .Stairs,
+    },
 }
 
 block_init :: proc() {
@@ -84,6 +91,7 @@ block_init :: proc() {
     init_block_model()
     init_slab_model()
     init_decal_model()
+    init_stairs_model()
     for &info in block_infos {
         if texture, ok := &info.texture.(BlockT_Cube); ok {
             texture.tex = rl.LoadTexture(texture.path)
@@ -102,6 +110,7 @@ get_base_model :: proc(block: Block) -> rl.Model {
     case .Slab:   return slab_model
     case .Decal:  return decal_model
     case .Cube:   return block_model
+    case .Stairs: return stairs_model
     }
     return block_model
 }
@@ -113,6 +122,7 @@ get_base_bbox :: proc(block: Block) -> rl.BoundingBox {
     case .Slab:   return slab_model_bbox
     case .Decal:  return decal_model_bbox
     case .Cube:   return block_model_bbox
+    case .Stairs: return stairs_model_bbox
     }
     return block_model_bbox
 }
@@ -159,6 +169,47 @@ get_block_bbox :: proc(block: Block) -> rl.BoundingBox {
     return rl.BoundingBox{new_min, new_max}
 }
 
+// Rotates a local-space AABB through a matrix and returns the new AABB.
+rotate_bbox :: proc(base: rl.BoundingBox, rot: rl.Matrix) -> rl.BoundingBox {
+    corners := [8]Vec3{
+        {base.min.x, base.min.y, base.min.z},
+        {base.max.x, base.min.y, base.min.z},
+        {base.min.x, base.max.y, base.min.z},
+        {base.max.x, base.max.y, base.min.z},
+        {base.min.x, base.min.y, base.max.z},
+        {base.max.x, base.min.y, base.max.z},
+        {base.min.x, base.max.y, base.max.z},
+        {base.max.x, base.max.y, base.max.z},
+    }
+    new_min := rl.Vector3Transform(corners[0], rot)
+    new_max := new_min
+    for i in 1..<8 {
+        t := rl.Vector3Transform(corners[i], rot)
+        new_min.x = min(new_min.x, t.x); new_max.x = max(new_max.x, t.x)
+        new_min.y = min(new_min.y, t.y); new_max.y = max(new_max.y, t.y)
+        new_min.z = min(new_min.z, t.z); new_max.z = max(new_max.z, t.z)
+    }
+    return rl.BoundingBox{new_min, new_max}
+}
+
+// Returns 1 or 2 bboxes for a block in local space (relative to block origin).
+// Caller must pass a buffer of at least 2 to hold results.
+// Returns the slice of filled bboxes.
+get_block_bboxes :: proc(block: Block, buf: ^[2]rl.BoundingBox) -> []rl.BoundingBox {
+    if block.type == .Stairs {
+        rot := get_block_transform(block)
+        // Bottom step: full width/depth, lower half
+        bottom := rl.BoundingBox{min={-0.5,-0.5,-0.5}, max={0.5, 0.0, 0.5}}
+        // Top step: full width, back half, upper half (south-facing default)
+        top    := rl.BoundingBox{min={-0.5, 0.0,-0.5}, max={0.5, 0.5, 0.0}}
+        buf[0] = rotate_bbox(bottom, rot)
+        buf[1] = rotate_bbox(top, rot)
+        return buf[:]
+    }
+    buf[0] = get_block_bbox(block)
+    return buf[:1]
+}
+
 //GAMEPLAY
 Block :: struct {
     type: Block_Type,
@@ -184,6 +235,7 @@ Arrow :: struct {
 
 block_place :: proc() {
     block := state.held_block
+    fmt.println(state.place_dir)
     if is_overlapping(state.cam.position, state.place_target, block) do return
     if world_get_block(state.place_target).type != .Air do return
     #partial switch block.type {

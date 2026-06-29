@@ -161,6 +161,121 @@ init_decal_model :: proc() {
     rl.UnloadImage(img)
 }
 
+// Stair faces south (+Z) by default; HAS_CARDINAL rotates at draw time.
+// Single mesh, 10 visible outer faces only — no internal shared faces (no z-fighting).
+// UVs are proportional to face size (half-unit faces use 0..0.5 range).
+init_stairs_model :: proc() {
+    NFACES :: 10
+    VCOUNT :: NFACES * 4    // 4 verts per quad
+    TCOUNT :: NFACES * 2    // 2 triangles per quad
+
+    mesh: rl.Mesh
+    mesh.vertexCount   = VCOUNT
+    mesh.triangleCount = TCOUNT
+    mesh.vertices  = cast([^]f32)rl.MemAlloc(u32(VCOUNT * 3 * size_of(f32)))
+    mesh.normals   = cast([^]f32)rl.MemAlloc(u32(VCOUNT * 3 * size_of(f32)))
+    mesh.texcoords = cast([^]f32)rl.MemAlloc(u32(VCOUNT * 2 * size_of(f32)))
+    mesh.indices   = cast([^]u16)rl.MemAlloc(u32(TCOUNT * 3 * size_of(u16)))
+
+    vi, ni, ti, ii := 0, 0, 0, 0
+    // Append one quad (4 verts CCW-from-outside) with per-vertex UVs
+    quad :: proc(m: ^rl.Mesh, vi, ni, ti, ii: ^int,
+                 p: [4][3]f32, norm: [3]f32, uv: [4][2]f32) {
+        vb := cast([^]f32)m.vertices; nb := cast([^]f32)m.normals
+        tb := cast([^]f32)m.texcoords; ib := cast([^]u16)m.indices
+        base := u16(vi^ / 3)
+        for k in 0..<4 {
+            vb[vi^  ]=p[k][0]; vb[vi^+1]=p[k][1]; vb[vi^+2]=p[k][2]; vi^+=3
+            nb[ni^  ]=norm[0]; nb[ni^+1]=norm[1]; nb[ni^+2]=norm[2]; ni^+=3
+            tb[ti^  ]=uv[k][0]; tb[ti^+1]=uv[k][1]; ti^+=2
+        }
+        ib[ii^]=base; ib[ii^+1]=base+1; ib[ii^+2]=base+2
+        ib[ii^+3]=base; ib[ii^+4]=base+2; ib[ii^+5]=base+3
+        ii^+=6
+    }
+
+    // ------- Bottom face (y=-0.5, full 1×1) normal -Y -------
+    {
+        p  := [4][3]f32{{-0.5,-0.5,-0.5},{0.5,-0.5,-0.5},{0.5,-0.5,0.5},{-0.5,-0.5,0.5}}
+        uv := [4][2]f32{{0,0},{1,0},{1,1},{0,1}}
+        quad(&mesh,&vi,&ni,&ti,&ii, p, {0,-1,0}, uv)
+    }
+    // ------- Back face (z=-0.5, full 1×1) normal -Z -------
+    {
+        p  := [4][3]f32{{0.5,-0.5,-0.5},{-0.5,-0.5,-0.5},{-0.5,0.5,-0.5},{0.5,0.5,-0.5}}
+        uv := [4][2]f32{{0,1},{1,1},{1,0},{0,0}}
+        quad(&mesh,&vi,&ni,&ti,&ii, p, {0,0,-1}, uv)
+    }
+    // ------- Front lower (z=0.5, y=-0.5..0, 1×0.5) normal +Z -------
+    {
+        p  := [4][3]f32{{-0.5,-0.5,0.5},{0.5,-0.5,0.5},{0.5,0.0,0.5},{-0.5,0.0,0.5}}
+        uv := [4][2]f32{{0,0.5},{1,0.5},{1,0},{0,0}}
+        quad(&mesh,&vi,&ni,&ti,&ii, p, {0,0,1}, uv)
+    }
+    // ------- Step riser (z=0, y=0..0.5, 1×0.5) normal +Z -------
+    {
+        p  := [4][3]f32{{-0.5,0.0,0.0},{0.5,0.0,0.0},{0.5,0.5,0.0},{-0.5,0.5,0.0}}
+        uv := [4][2]f32{{0,0.5},{1,0.5},{1,0},{0,0}}
+        quad(&mesh,&vi,&ni,&ti,&ii, p, {0,0,1}, uv)
+    }
+    // ------- Tread top (y=0, z=0..0.5, 1×0.5 depth) normal +Y -------
+    // edge1=(1,0,0) x edge2=(1,0,-0.5) → (0,+0.5,0) ✓
+    {
+        p  := [4][3]f32{{-0.5,0.0,0.5},{0.5,0.0,0.5},{0.5,0.0,0.0},{-0.5,0.0,0.0}}
+        uv := [4][2]f32{{0,0},{1,0},{1,0.5},{0,0.5}}
+        quad(&mesh,&vi,&ni,&ti,&ii, p, {0,1,0}, uv)
+    }
+    // ------- Cap top (y=0.5, z=-0.5..0, 1×0.5 depth) normal +Y -------
+    // edge1=(1,0,0) x edge2=(1,0,-0.5) → (0,+0.5,0) ✓
+    {
+        p  := [4][3]f32{{-0.5,0.5,0.0},{0.5,0.5,0.0},{0.5,0.5,-0.5},{-0.5,0.5,-0.5}}
+        uv := [4][2]f32{{0,0},{1,0},{1,0.5},{0,0.5}}
+        quad(&mesh,&vi,&ni,&ti,&ii, p, {0,1,0}, uv)
+    }
+    // ------- Left lower (x=-0.5, y=-0.5..0, z full, 1×0.5) normal -X -------
+    // edge1=(0,0,-1) x edge2=(0,-0.5,-1) → (-0.5,0,0) ✓
+    {
+        p  := [4][3]f32{{-0.5,0.0,0.5},{-0.5,0.0,-0.5},{-0.5,-0.5,-0.5},{-0.5,-0.5,0.5}}
+        uv := [4][2]f32{{0,0},{1,0},{1,0.5},{0,0.5}}
+        quad(&mesh,&vi,&ni,&ti,&ii, p, {-1,0,0}, uv)
+    }
+    // ------- Left upper (x=-0.5, y=0..0.5, z=-0.5..0, 0.5×0.5) normal -X -------
+    // edge1=(0,0,-0.5) x edge2=(0,-0.5,-0.5) → (-0.25,0,0) ✓
+    {
+        p  := [4][3]f32{{-0.5,0.5,0.0},{-0.5,0.5,-0.5},{-0.5,0.0,-0.5},{-0.5,0.0,0.0}}
+        uv := [4][2]f32{{0,0},{0.5,0},{0.5,0.5},{0,0.5}}
+        quad(&mesh,&vi,&ni,&ti,&ii, p, {-1,0,0}, uv)
+    }
+    // ------- Right lower (x=0.5, y=-0.5..0, z full, 1×0.5) normal +X -------
+    // edge1=(0,0,1) x edge2=(0,-0.5,1) → (+0.5,0,0) ✓
+    {
+        p  := [4][3]f32{{0.5,0.0,-0.5},{0.5,0.0,0.5},{0.5,-0.5,0.5},{0.5,-0.5,-0.5}}
+        uv := [4][2]f32{{0,0},{1,0},{1,0.5},{0,0.5}}
+        quad(&mesh,&vi,&ni,&ti,&ii, p, {1,0,0}, uv)
+    }
+    // ------- Right upper (x=0.5, y=0..0.5, z=-0.5..0, 0.5×0.5) normal +X -------
+    // edge1=(0,0,0.5) x edge2=(0,-0.5,0.5) → (+0.25,0,0) ✓
+    {
+        p  := [4][3]f32{{0.5,0.5,-0.5},{0.5,0.5,0.0},{0.5,0.0,0.0},{0.5,0.0,-0.5}}
+        uv := [4][2]f32{{0,0},{0.5,0},{0.5,0.5},{0,0.5}}
+        quad(&mesh,&vi,&ni,&ti,&ii, p, {1,0,0}, uv)
+    }
+
+    rl.UploadMesh(&mesh, false)
+
+    stairs_model.transform     = rl.Matrix(1)
+    stairs_model.meshCount     = 1
+    stairs_model.materialCount = 1
+    stairs_model.meshes       = cast(^rl.Mesh)    rl.MemAlloc(u32(size_of(rl.Mesh)))
+    stairs_model.materials    = cast(^rl.Material)rl.MemAlloc(u32(size_of(rl.Material)))
+    stairs_model.meshMaterial = cast(^i32)        rl.MemAlloc(u32(size_of(i32)))
+    stairs_model.meshes[0]    = mesh
+    stairs_model.materials[0] = rl.LoadMaterialDefault()
+    stairs_model.materials[0].shader = block_shader
+    stairs_model.meshMaterial[0] = 0
+    stairs_model_bbox = rl.GetModelBoundingBox(stairs_model)
+}
+
 gen_redstone_textures :: proc() {
     for &texture, state in redstone_render_texture {
         is_on := (state & (1 << len(Cardinal))) != 0

@@ -189,6 +189,9 @@ update :: proc() {
         if rl.IsKeyDown(.SEVEN) {
             state.held_block = {.Slab, {}}
         }
+        if rl.IsKeyDown(.EIGHT) {
+            state.held_block = {.Stairs, {}}
+        }
     }
 
     if state.use_mouse_input {
@@ -257,11 +260,20 @@ update :: proc() {
             block_pos := to_vec3(global_pos)
             if !is_overlapping(state.cam.position, global_pos, block) do continue
 
-                model_bbox := get_block_bbox(block)
+            feet_y := state.cam.position.y - state.collider_offset.y
+            bbox_buf: [2]rl.BoundingBox
+            bboxes := get_block_bboxes(block, &bbox_buf)
+            for model_bbox in bboxes {
                 b_min := block_pos + model_bbox.min
                 b_max := block_pos + model_bbox.max
 
-                feet_y := state.cam.position.y - state.collider_offset.y
+                // Quick per-box overlap check
+                p_min := state.cam.position - state.collider_offset
+                p_max := p_min + state.collider_size
+                if min(p_max.x,b_max.x)-max(p_min.x,b_min.x) <= 0.001 do continue
+                if min(p_max.y,b_max.y)-max(p_min.y,b_min.y) <= 0.001 do continue
+                if min(p_max.z,b_max.z)-max(p_min.z,b_min.z) <= 0.001 do continue
+
                 if i != 1 && was_grounded && b_max.y - feet_y <= 0.6 && b_max.y > feet_y {
                     test_pos := state.cam.position
                     test_pos.y = b_max.y + state.collider_offset.y
@@ -283,6 +295,7 @@ update :: proc() {
                     state.velocity.y = 0
                 }
                 break
+            }
         }
     }
     state.last_position = state.cam.position
@@ -317,10 +330,10 @@ draw :: proc() {
                 
                 if texture, ok := tex.(BlockT_Cube); ok {
                     rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, texture.tex)
-                    if info.model != .Decal do rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, texture.tex)
+                    if info.model != .Decal && info.model != .Stairs do rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, texture.tex)
                 } else if texture, ok := tex.(BlockT_Double); ok {
                     rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, texture.side)
-                    if info.model != .Decal do rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, texture.top)
+                    if info.model != .Decal && info.model != .Stairs do rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, texture.top)
                 }
                 
                 rl.DrawModel(model_to_draw, p, 1, rl.WHITE)
@@ -533,21 +546,24 @@ get_wasd_input :: proc(forward, right, up: Vec3) -> (wasd:Vec3) {
 is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block) -> bool {
     if block == {.Air, {}} do return false
     info := block_infos[block.type]
-    if .NO_COLLISION in info.flags do return false 
+    if .NO_COLLISION in info.flags do return false
     block_pos := to_vec3(block_pos)
 
     p_min := player - state.collider_offset
     p_max := p_min + state.collider_size
-    model_bbox := get_block_bbox(block)
-    
-    b_min := block_pos + model_bbox.min
-    b_max := block_pos + model_bbox.max
-    
-    overlap_x := min(p_max.x, b_max.x) - max(p_min.x, b_min.x)
-    overlap_y := min(p_max.y, b_max.y) - max(p_min.y, b_min.y)
-    overlap_z := min(p_max.z, b_max.z) - max(p_min.z, b_min.z)
-    
-    return overlap_x > 0.001 && overlap_y > 0.001 && overlap_z > 0.001
+
+    // Test against each sub-bbox (2 for stairs, 1 for everything else)
+    bbox_buf: [2]rl.BoundingBox
+    for model_bbox in get_block_bboxes(block, &bbox_buf) {
+        b_min := block_pos + model_bbox.min
+        b_max := block_pos + model_bbox.max
+        if min(p_max.x,b_max.x)-max(p_min.x,b_min.x) > 0.001 &&
+           min(p_max.y,b_max.y)-max(p_min.y,b_min.y) > 0.001 &&
+           min(p_max.z,b_max.z)-max(p_min.z,b_min.z) > 0.001 {
+            return true
+        }
+    }
+    return false
 }
 is_overlapping_at :: proc(player: Vec3, global_pos: [3]i32) -> bool {
     return is_overlapping(player, global_pos, world_get_block(global_pos))
