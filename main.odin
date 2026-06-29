@@ -337,7 +337,10 @@ draw :: proc() {
                         num_tiles := int(total_dist / tile_size)
                         step      := total_dist / f32(max(num_tiles, 1))
                         half      := tile_size * 0.5
-                        up        := Vec3{0, 1, 0}
+                        // Pick a reference vector not parallel to dir to build stable quad axes
+                        ref       := Vec3{0, 1, 0} if abs(dir.y) < 0.99 else Vec3{0, 0, 1}
+                        right     := linalg.normalize(linalg.cross(dir, ref))
+                        up        := linalg.normalize(linalg.cross(right, dir))
 
                         rlgl.DisableBackfaceCulling()
                         rlgl.SetTexture(arrow_texture.id)
@@ -345,12 +348,12 @@ draw :: proc() {
                         rlgl.Color4ub(255, 255, 255, 255)
                         for t in 0..=num_tiles {
                             c := from_center + dir * (f32(t) * step + step * 0.5)
-                            // Quad corners: U axis = dir (U=0 at source side, U=1 at dest side), V axis = world up
+                            // Quad corners: U axis = dir, V axis = up (perpendicular to dir)
                             bl := c - dir*half - up*half
                             br := c + dir*half - up*half
                             tr := c + dir*half + up*half
                             tl := c - dir*half + up*half
-                            // Front face (facing the normal side)
+                            // Front face
                             rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
                             rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
                             rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
