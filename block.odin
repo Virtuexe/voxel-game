@@ -38,27 +38,22 @@ block_infos := [Block_Type]Block_Info {
     },
     .Dirt = {
         flags = {},
-        textures = {.Top = .Dirt, .Bottom = .Dirt, .North = .Dirt, .South = .Dirt, .East = .Dirt, .West = .Dirt},
         model = .Cube,
     },
     .Stone = {
         flags = {},
-        textures = {.Top = .Stone, .Bottom = .Dirt, .North = .Stone, .South = .Stone, .East = .Stone, .West = .Stone},
         model = .Cube,
     },
     .Cobblestone = {
         flags = {},
-        textures = {.Top = .Cobblestone, .Bottom = .Cobblestone, .North = .Cobblestone, .South = .Cobblestone, .East = .Cobblestone, .West = .Cobblestone},
         model = .Cube,
     },
     .Glass = {
         flags = {.TEXTURE_TRANSPARENT},
-        textures = {.Top = .Glass, .Bottom = .Glass, .North = .Glass, .South = .Glass, .East = .Glass, .West = .Glass},
         model = .Cube,
     },
     .Planks = {
         flags = {},
-        textures = {.Top = .Planks, .Bottom = .Planks, .North = .Planks, .South = .Planks, .East = .Planks, .West = .Planks},
         model = .Cube,
     },
     .Redstone = {
@@ -67,18 +62,40 @@ block_infos := [Block_Type]Block_Info {
     },
     .Slab = {
         flags = {.HAS_BLOCK_FACE},
-        textures = {.Top = .Slab_Top, .Bottom = .Slab_Top, .North = .Slab_Side, .South = .Slab_Side, .East = .Slab_Side, .West = .Slab_Side},
         model = .Slab,
     },
     .Stairs = {
         flags = {.HAS_BLOCK_FACE, .HAS_CARDINAL},
-        textures = {.Top = .Planks, .Bottom = .Planks, .North = .Planks, .South = .Planks, .East = .Planks, .West = .Planks},
         model = .Stairs,
     },
 }
 
+fill_textures :: proc(tex: Block_Texture_Type) -> [Block_Face]Block_Texture_Type {
+    return {.Top = tex, .Bottom = tex, .North = tex, .South = tex, .East = tex, .West = tex}
+}
+
+init_block_infos :: proc() {
+    block_infos[.Dirt].textures = fill_textures(.Dirt)
+    
+    block_infos[.Stone].textures = fill_textures(.Stone)
+    block_infos[.Stone].textures[.Bottom] = .Dirt
+    
+    block_infos[.Cobblestone].textures = fill_textures(.Cobblestone)
+    
+    block_infos[.Glass].textures = fill_textures(.Glass)
+    
+    block_infos[.Planks].textures = fill_textures(.Planks)
+    
+    block_infos[.Slab].textures = fill_textures(.Slab_Side)
+    block_infos[.Slab].textures[.Top] = .Slab_Top
+    block_infos[.Slab].textures[.Bottom] = .Slab_Top
+    
+    block_infos[.Stairs].textures = fill_textures(.Planks)
+}
+
 block_init :: proc() {
     init_shaders()
+    init_block_infos()
     init_block_model()
     init_slab_model()
     init_decal_model()
