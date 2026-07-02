@@ -66,20 +66,20 @@ UV_HALF_ROT_180 :: [8]f32{ 1,1, 1,0.5, 0,0.5, 0,1 }
 make_multi_material_model :: proc(is_slab: bool) -> rl.Model {
     model: rl.Model
     model.transform = rl.Matrix(1)
-    model.meshCount = 2
-    model.materialCount = 2
-    model.meshes = cast(^rl.Mesh)rl.MemAlloc(u32(size_of(rl.Mesh) * 2))
-    model.materials = cast(^rl.Material)rl.MemAlloc(u32(size_of(rl.Material) * 2))
-    model.meshMaterial = cast(^i32)rl.MemAlloc(u32(size_of(i32) * 2))
+    model.meshCount = 6
+    model.materialCount = 6
+    model.meshes = cast(^rl.Mesh)rl.MemAlloc(u32(size_of(rl.Mesh) * 6))
+    model.materials = cast(^rl.Material)rl.MemAlloc(u32(size_of(rl.Material) * 6))
+    model.meshMaterial = cast(^i32)rl.MemAlloc(u32(size_of(i32) * 6))
     
-    model.materials[0] = rl.LoadMaterialDefault()
-    model.materials[1] = rl.LoadMaterialDefault()
-    model.materials[0].shader = block_shader
-    model.materials[1].shader = block_shader
-    model.meshMaterial[0] = 0 // Sides use material 0
-    model.meshMaterial[1] = 1 // Top/bottom use material 1
+    for i in 0..<6 {
+        model.materials[i] = rl.LoadMaterialDefault()
+        model.materials[i].shader = block_shader
+        model.meshMaterial[i] = i32(i)
+    }
     
-    for i in 0..<2 {
+    for i in 0..<6 {
+        face_enum := Block_Face(i)
         mesh := rl.GenMeshCube(1, is_slab ? 0.5 : 1, 1)
         
         coords := cast([^]f32)mesh.texcoords
@@ -100,7 +100,17 @@ make_multi_material_model :: proc(is_slab: bool) -> rl.Model {
         }
         rl.UpdateMeshBuffer(mesh, 1, mesh.texcoords, mesh.vertexCount * 2 * size_of(f32), 0)
         
-        faces := i == 0 ? []int{0, 1, 4, 5} : []int{2, 3}
+        face_idx: int
+        switch face_enum {
+        case .Top: face_idx = 2
+        case .Bottom: face_idx = 3
+        case .North: face_idx = 1
+        case .South: face_idx = 0
+        case .East: face_idx = 4
+        case .West: face_idx = 5
+        }
+
+        faces := []int{face_idx}
         indices := cast([^]u16)mesh.indices
         
         temp_indices: [36]u16
@@ -165,114 +175,130 @@ init_decal_model :: proc() {
 // Single mesh, 10 visible outer faces only — no internal shared faces (no z-fighting).
 // UVs are proportional to face size (half-unit faces use 0..0.5 range).
 init_stairs_model :: proc() {
-    NFACES :: 10
-    VCOUNT :: NFACES * 4    // 4 verts per quad
-    TCOUNT :: NFACES * 2    // 2 triangles per quad
+    stairs_model.transform     = rl.Matrix(1)
+    stairs_model.meshCount     = 6
+    stairs_model.materialCount = 6
+    stairs_model.meshes       = cast(^rl.Mesh)    rl.MemAlloc(u32(size_of(rl.Mesh) * 6))
+    stairs_model.materials    = cast(^rl.Material)rl.MemAlloc(u32(size_of(rl.Material) * 6))
+    stairs_model.meshMaterial = cast(^i32)        rl.MemAlloc(u32(size_of(i32) * 6))
 
-    mesh: rl.Mesh
-    mesh.vertexCount   = VCOUNT
-    mesh.triangleCount = TCOUNT
-    mesh.vertices  = cast([^]f32)rl.MemAlloc(u32(VCOUNT * 3 * size_of(f32)))
-    mesh.normals   = cast([^]f32)rl.MemAlloc(u32(VCOUNT * 3 * size_of(f32)))
-    mesh.texcoords = cast([^]f32)rl.MemAlloc(u32(VCOUNT * 2 * size_of(f32)))
-    mesh.indices   = cast([^]u16)rl.MemAlloc(u32(TCOUNT * 3 * size_of(u16)))
-
-    vi, ni, ti, ii := 0, 0, 0, 0
-    // Append one quad (4 verts CCW-from-outside) with per-vertex UVs
-    quad :: proc(m: ^rl.Mesh, vi, ni, ti, ii: ^int,
-                 p: [4][3]f32, norm: [3]f32, uv: [4][2]f32) {
-        vb := cast([^]f32)m.vertices; nb := cast([^]f32)m.normals
-        tb := cast([^]f32)m.texcoords; ib := cast([^]u16)m.indices
-        base := u16(vi^ / 3)
-        for k in 0..<4 {
-            vb[vi^  ]=p[k][0]; vb[vi^+1]=p[k][1]; vb[vi^+2]=p[k][2]; vi^+=3
-            nb[ni^  ]=norm[0]; nb[ni^+1]=norm[1]; nb[ni^+2]=norm[2]; ni^+=3
-            tb[ti^  ]=uv[k][0]; tb[ti^+1]=uv[k][1]; ti^+=2
-        }
-        ib[ii^]=base; ib[ii^+1]=base+1; ib[ii^+2]=base+2
-        ib[ii^+3]=base; ib[ii^+4]=base+2; ib[ii^+5]=base+3
-        ii^+=6
+    for i in 0..<6 {
+        stairs_model.materials[i] = rl.LoadMaterialDefault()
+        stairs_model.materials[i].shader = block_shader
+        stairs_model.meshMaterial[i] = i32(i)
     }
+
+    allocate_mesh :: proc(num_quads: int) -> rl.Mesh {
+        mesh: rl.Mesh
+        vcount := num_quads * 4
+        tcount := num_quads * 2
+        mesh.vertexCount = i32(vcount)
+        mesh.triangleCount = i32(tcount)
+        if vcount > 0 {
+            mesh.vertices  = cast([^]f32)rl.MemAlloc(u32(vcount * 3 * size_of(f32)))
+            mesh.normals   = cast([^]f32)rl.MemAlloc(u32(vcount * 3 * size_of(f32)))
+            mesh.texcoords = cast([^]f32)rl.MemAlloc(u32(vcount * 2 * size_of(f32)))
+            mesh.indices   = cast([^]u16)rl.MemAlloc(u32(tcount * 3 * size_of(u16)))
+        }
+        return mesh
+    }
+
+    stairs_model.meshes[int(Block_Face.Top)]    = allocate_mesh(2)
+    stairs_model.meshes[int(Block_Face.Bottom)] = allocate_mesh(1)
+    stairs_model.meshes[int(Block_Face.North)]  = allocate_mesh(1)
+    stairs_model.meshes[int(Block_Face.South)]  = allocate_mesh(2)
+    stairs_model.meshes[int(Block_Face.East)]   = allocate_mesh(2)
+    stairs_model.meshes[int(Block_Face.West)]   = allocate_mesh(2)
+
+    vis := [6]int{}
+    nis := [6]int{}
+    tis := [6]int{}
+    iis := [6]int{}
+
+    quad :: proc(m: []rl.Mesh, face: Block_Face, vis, nis, tis, iis: ^[6]int,
+                 p: [4][3]f32, norm: [3]f32, uv: [4][2]f32) {
+        fi := int(face)
+        mesh := &m[fi]
+        vb := cast([^]f32)mesh.vertices; nb := cast([^]f32)mesh.normals
+        tb := cast([^]f32)mesh.texcoords; ib := cast([^]u16)mesh.indices
+        base := u16(vis[fi] / 3)
+        for k in 0..<4 {
+            vb[vis[fi]  ]=p[k][0]; vb[vis[fi]+1]=p[k][1]; vb[vis[fi]+2]=p[k][2]; vis[fi]+=3
+            nb[nis[fi]  ]=norm[0]; nb[nis[fi]+1]=norm[1]; nb[nis[fi]+2]=norm[2]; nis[fi]+=3
+            tb[tis[fi]  ]=uv[k][0]; tb[tis[fi]+1]=uv[k][1]; tis[fi]+=2
+        }
+        ib[iis[fi]]=base; ib[iis[fi]+1]=base+1; ib[iis[fi]+2]=base+2
+        ib[iis[fi]+3]=base; ib[iis[fi]+4]=base+2; ib[iis[fi]+5]=base+3
+        iis[fi]+=6
+    }
+
+    meshes := stairs_model.meshes[:6]
 
     // ------- Bottom face (y=-0.5, full 1×1) normal -Y -------
     {
         p  := [4][3]f32{{-0.5,-0.5,-0.5},{0.5,-0.5,-0.5},{0.5,-0.5,0.5},{-0.5,-0.5,0.5}}
         uv := [4][2]f32{{0,0},{1,0},{1,1},{0,1}}
-        quad(&mesh,&vi,&ni,&ti,&ii, p, {0,-1,0}, uv)
+        quad(meshes, .Bottom, &vis, &nis, &tis, &iis, p, {0,-1,0}, uv)
     }
     // ------- Back face (z=-0.5, full 1×1) normal -Z -------
     {
         p  := [4][3]f32{{0.5,-0.5,-0.5},{-0.5,-0.5,-0.5},{-0.5,0.5,-0.5},{0.5,0.5,-0.5}}
         uv := [4][2]f32{{0,1},{1,1},{1,0},{0,0}}
-        quad(&mesh,&vi,&ni,&ti,&ii, p, {0,0,-1}, uv)
+        quad(meshes, .North, &vis, &nis, &tis, &iis, p, {0,0,-1}, uv)
     }
     // ------- Front lower (z=0.5, y=-0.5..0, 1×0.5) normal +Z -------
     {
         p  := [4][3]f32{{-0.5,-0.5,0.5},{0.5,-0.5,0.5},{0.5,0.0,0.5},{-0.5,0.0,0.5}}
         uv := [4][2]f32{{0,0.5},{1,0.5},{1,0},{0,0}}
-        quad(&mesh,&vi,&ni,&ti,&ii, p, {0,0,1}, uv)
+        quad(meshes, .South, &vis, &nis, &tis, &iis, p, {0,0,1}, uv)
     }
     // ------- Step riser (z=0, y=0..0.5, 1×0.5) normal +Z -------
     {
         p  := [4][3]f32{{-0.5,0.0,0.0},{0.5,0.0,0.0},{0.5,0.5,0.0},{-0.5,0.5,0.0}}
         uv := [4][2]f32{{0,0.5},{1,0.5},{1,0},{0,0}}
-        quad(&mesh,&vi,&ni,&ti,&ii, p, {0,0,1}, uv)
+        quad(meshes, .South, &vis, &nis, &tis, &iis, p, {0,0,1}, uv)
     }
     // ------- Tread top (y=0, z=0..0.5, 1×0.5 depth) normal +Y -------
-    // edge1=(1,0,0) x edge2=(1,0,-0.5) → (0,+0.5,0) ✓
     {
         p  := [4][3]f32{{-0.5,0.0,0.5},{0.5,0.0,0.5},{0.5,0.0,0.0},{-0.5,0.0,0.0}}
         uv := [4][2]f32{{0,0},{1,0},{1,0.5},{0,0.5}}
-        quad(&mesh,&vi,&ni,&ti,&ii, p, {0,1,0}, uv)
+        quad(meshes, .Top, &vis, &nis, &tis, &iis, p, {0,1,0}, uv)
     }
     // ------- Cap top (y=0.5, z=-0.5..0, 1×0.5 depth) normal +Y -------
-    // edge1=(1,0,0) x edge2=(1,0,-0.5) → (0,+0.5,0) ✓
     {
         p  := [4][3]f32{{-0.5,0.5,0.0},{0.5,0.5,0.0},{0.5,0.5,-0.5},{-0.5,0.5,-0.5}}
         uv := [4][2]f32{{0,0},{1,0},{1,0.5},{0,0.5}}
-        quad(&mesh,&vi,&ni,&ti,&ii, p, {0,1,0}, uv)
+        quad(meshes, .Top, &vis, &nis, &tis, &iis, p, {0,1,0}, uv)
     }
     // ------- Left lower (x=-0.5, y=-0.5..0, z full, 1×0.5) normal -X -------
-    // edge1=(0,0,-1) x edge2=(0,-0.5,-1) → (-0.5,0,0) ✓
     {
         p  := [4][3]f32{{-0.5,0.0,0.5},{-0.5,0.0,-0.5},{-0.5,-0.5,-0.5},{-0.5,-0.5,0.5}}
         uv := [4][2]f32{{0,0},{1,0},{1,0.5},{0,0.5}}
-        quad(&mesh,&vi,&ni,&ti,&ii, p, {-1,0,0}, uv)
+        quad(meshes, .West, &vis, &nis, &tis, &iis, p, {-1,0,0}, uv)
     }
     // ------- Left upper (x=-0.5, y=0..0.5, z=-0.5..0, 0.5×0.5) normal -X -------
-    // edge1=(0,0,-0.5) x edge2=(0,-0.5,-0.5) → (-0.25,0,0) ✓
     {
         p  := [4][3]f32{{-0.5,0.5,0.0},{-0.5,0.5,-0.5},{-0.5,0.0,-0.5},{-0.5,0.0,0.0}}
         uv := [4][2]f32{{0,0},{0.5,0},{0.5,0.5},{0,0.5}}
-        quad(&mesh,&vi,&ni,&ti,&ii, p, {-1,0,0}, uv)
+        quad(meshes, .West, &vis, &nis, &tis, &iis, p, {-1,0,0}, uv)
     }
     // ------- Right lower (x=0.5, y=-0.5..0, z full, 1×0.5) normal +X -------
-    // edge1=(0,0,1) x edge2=(0,-0.5,1) → (+0.5,0,0) ✓
     {
         p  := [4][3]f32{{0.5,0.0,-0.5},{0.5,0.0,0.5},{0.5,-0.5,0.5},{0.5,-0.5,-0.5}}
         uv := [4][2]f32{{0,0},{1,0},{1,0.5},{0,0.5}}
-        quad(&mesh,&vi,&ni,&ti,&ii, p, {1,0,0}, uv)
+        quad(meshes, .East, &vis, &nis, &tis, &iis, p, {1,0,0}, uv)
     }
     // ------- Right upper (x=0.5, y=0..0.5, z=-0.5..0, 0.5×0.5) normal +X -------
-    // edge1=(0,0,0.5) x edge2=(0,-0.5,0.5) → (+0.25,0,0) ✓
     {
         p  := [4][3]f32{{0.5,0.5,-0.5},{0.5,0.5,0.0},{0.5,0.0,0.0},{0.5,0.0,-0.5}}
         uv := [4][2]f32{{0,0},{0.5,0},{0.5,0.5},{0,0.5}}
-        quad(&mesh,&vi,&ni,&ti,&ii, p, {1,0,0}, uv)
+        quad(meshes, .East, &vis, &nis, &tis, &iis, p, {1,0,0}, uv)
     }
 
-    rl.UploadMesh(&mesh, false)
+    for i in 0..<6 {
+        rl.UploadMesh(&stairs_model.meshes[i], false)
+    }
 
-    stairs_model.transform     = rl.Matrix(1)
-    stairs_model.meshCount     = 1
-    stairs_model.materialCount = 1
-    stairs_model.meshes       = cast(^rl.Mesh)    rl.MemAlloc(u32(size_of(rl.Mesh)))
-    stairs_model.materials    = cast(^rl.Material)rl.MemAlloc(u32(size_of(rl.Material)))
-    stairs_model.meshMaterial = cast(^i32)        rl.MemAlloc(u32(size_of(i32)))
-    stairs_model.meshes[0]    = mesh
-    stairs_model.materials[0] = rl.LoadMaterialDefault()
-    stairs_model.materials[0].shader = block_shader
-    stairs_model.meshMaterial[0] = 0
     stairs_model_bbox = rl.GetModelBoundingBox(stairs_model)
 }
 

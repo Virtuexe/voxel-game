@@ -21,7 +21,7 @@ Block_Type :: enum {
 
 Block_Info :: struct {
     flags: bit_set[Block_Flag],
-    texture: Block_Texture,
+    textures: [Block_Face]Block_Texture_Type,
     model: Block_Model
 }
 Block_Flag :: enum {
@@ -31,15 +31,6 @@ Block_Flag :: enum {
     HAS_CARDINAL,
     HAS_BLOCK_FACE,
 }
-Block_Texture :: union {BlockT_Cube, BlockT_Double}
-BlockT_Cube :: struct {
-    path: cstring,
-    tex: rl.Texture2D,
-}
-BlockT_Double :: struct {
-    path_side, path_cap: cstring,
-    side, top: rl.Texture2D,
-}
 Block_Model :: enum {Cube, Slab, Decal, Stairs}
 block_infos := [Block_Type]Block_Info {
     .Air = {
@@ -47,27 +38,27 @@ block_infos := [Block_Type]Block_Info {
     },
     .Dirt = {
         flags = {},
-        texture = BlockT_Cube{path="assets/dirt.png"},
+        textures = {.Top = .Dirt, .Bottom = .Dirt, .North = .Dirt, .South = .Dirt, .East = .Dirt, .West = .Dirt},
         model = .Cube,
     },
     .Stone = {
         flags = {},
-        texture = BlockT_Cube{path="assets/stone.png"},
+        textures = {.Top = .Stone, .Bottom = .Dirt, .North = .Stone, .South = .Stone, .East = .Stone, .West = .Stone},
         model = .Cube,
     },
     .Cobblestone = {
         flags = {},
-        texture = BlockT_Cube{path="assets/cobblestone.png"},
+        textures = {.Top = .Cobblestone, .Bottom = .Cobblestone, .North = .Cobblestone, .South = .Cobblestone, .East = .Cobblestone, .West = .Cobblestone},
         model = .Cube,
     },
     .Glass = {
         flags = {.TEXTURE_TRANSPARENT},
-        texture = BlockT_Cube{path="assets/glass.png"},
+        textures = {.Top = .Glass, .Bottom = .Glass, .North = .Glass, .South = .Glass, .East = .Glass, .West = .Glass},
         model = .Cube,
     },
     .Planks = {
         flags = {},
-        texture = BlockT_Cube{path="assets/planks.png"},
+        textures = {.Top = .Planks, .Bottom = .Planks, .North = .Planks, .South = .Planks, .East = .Planks, .West = .Planks},
         model = .Cube,
     },
     .Redstone = {
@@ -76,12 +67,12 @@ block_infos := [Block_Type]Block_Info {
     },
     .Slab = {
         flags = {.HAS_BLOCK_FACE},
-        texture = BlockT_Double{path_side="assets/slab_side.png", path_cap="assets/slab_top.png"},
+        textures = {.Top = .Slab_Top, .Bottom = .Slab_Top, .North = .Slab_Side, .South = .Slab_Side, .East = .Slab_Side, .West = .Slab_Side},
         model = .Slab,
     },
     .Stairs = {
         flags = {.HAS_BLOCK_FACE, .HAS_CARDINAL},
-        texture = BlockT_Cube{path="assets/planks.png"},
+        textures = {.Top = .Planks, .Bottom = .Planks, .North = .Planks, .South = .Planks, .East = .Planks, .West = .Planks},
         model = .Stairs,
     },
 }
@@ -92,14 +83,7 @@ block_init :: proc() {
     init_slab_model()
     init_decal_model()
     init_stairs_model()
-    for &info in block_infos {
-        if texture, ok := &info.texture.(BlockT_Cube); ok {
-            texture.tex = rl.LoadTexture(texture.path)
-        } else if texture, ok := &info.texture.(BlockT_Double); ok {
-            texture.side = rl.LoadTexture(texture.path_side)
-            texture.top = rl.LoadTexture(texture.path_cap)
-        }
-    }
+    init_textures()
 }
 //TODO unload textures
 

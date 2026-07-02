@@ -322,18 +322,21 @@ draw :: proc() {
                 p := to_vec3(global_pos)
                 model_to_draw := get_block_model(block)
                 
-                tex := info.texture
                 if block.type == .Redstone {
                     redstone := block.data.redstone
-                    tex = BlockT_Cube{tex = get_redstone_texture(redstone.on, redstone.connections).texture}
-                }
-                
-                if texture, ok := tex.(BlockT_Cube); ok {
-                    rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, texture.tex)
-                    if info.model != .Decal && info.model != .Stairs do rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, texture.tex)
-                } else if texture, ok := tex.(BlockT_Double); ok {
-                    rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, texture.side)
-                    if info.model != .Decal && info.model != .Stairs do rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, texture.top)
+                    redstone_tex := get_redstone_texture(redstone.on, redstone.connections).texture
+                    rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, redstone_tex)
+                    if info.model != .Decal && info.model != .Stairs do rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, redstone_tex)
+                } else {
+                    if info.model == .Decal {
+                        t := block_textures[info.textures[.Top]].texture
+                        rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, t)
+                    } else {
+                        for face in Block_Face {
+                            t := block_textures[info.textures[face]].texture
+                            rl.SetMaterialTexture(&model_to_draw.materials[int(face)], .ALBEDO, t)
+                        }
+                    }
                 }
                 
                 rl.DrawModel(model_to_draw, p, 1, rl.WHITE)
