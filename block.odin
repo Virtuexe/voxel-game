@@ -21,8 +21,9 @@ Block_Type :: enum {
 
 Block_Info :: struct {
     flags: bit_set[Block_Flag],
+    item: Maybe(Item_Type),
     textures: [Block_Face]Block_Texture_Type,
-    model: Block_Model
+    model: Block_Model,
 }
 Block_Flag :: enum {
     TEXTURE_TRANSPARENT,
@@ -38,34 +39,42 @@ block_infos := [Block_Type]Block_Info {
     },
     .Dirt = {
         flags = {},
+        item = .Dirt,
         model = .Cube,
     },
     .Stone = {
         flags = {},
+        item = .Stone,
         model = .Cube,
     },
     .Cobblestone = {
         flags = {},
+        item = .Cobblestone,
         model = .Cube,
     },
     .Glass = {
         flags = {.TEXTURE_TRANSPARENT},
+        item = .Glass,
         model = .Cube,
     },
     .Planks = {
         flags = {},
+        item = .Planks,
         model = .Cube,
     },
     .Redstone = {
         flags = {.TEXTURE_TRANSPARENT, .STATEFUL, .NO_COLLISION},
+        item = .Redstone,
         model = .Decal,
     },
     .Slab = {
         flags = {.HAS_BLOCK_FACE},
+        item = .Slab,
         model = .Slab,
     },
     .Stairs = {
         flags = {.HAS_BLOCK_FACE, .HAS_CARDINAL},
+        item = .Stairs,
         model = .Stairs,
     },
 }
@@ -91,16 +100,15 @@ init_block_infos :: proc() {
     block_infos[.Slab].textures[.Bottom] = .Slab_Top
     
     block_infos[.Stairs].textures = fill_textures(.Planks)
+    block_infos[.Stairs].textures[.Top] = .Stone
 }
 
 block_init :: proc() {
-    init_shaders()
     init_block_infos()
     init_block_model()
     init_slab_model()
     init_decal_model()
     init_stairs_model()
-    init_textures()
 }
 //TODO unload textures
 

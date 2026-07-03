@@ -88,6 +88,8 @@ init :: proc() {
 
     arrow_texture = rl.LoadTexture("assets/arrow.png")
     crosshair_texture = rl.LoadTexture("assets/crosshair.png")
+    init_textures()
+    init_shaders()
     block_init()
     gen_redstone_textures()
 
@@ -301,6 +303,8 @@ update :: proc() {
     state.last_position = state.cam.position
     state.cam.target = state.cam.position + forward
 
+
+    update_ui()
     update_code()
 }
 draw :: proc() {
@@ -409,22 +413,7 @@ draw :: proc() {
     rl.EndMode3D()
 
     //UI
-    rl.BeginMode2D(state.ui_cam)
-    
-    if !state.show_debug {
-        crosshair := ui.Rec{{}, ui.vmin(screen)/15}
-        crosshair.pos = center-crosshair.size/2
-        ui.draw_rec_texture(crosshair, crosshair_texture)
-    }
-    else {
-        text := fmt.aprint(
-            "position: ", state.cam.position, "\n",
-            allocator = context.temp_allocator
-        )
-        rl.DrawText(strings.clone_to_cstring(text, context.temp_allocator), 0, 0, i32(ui.vmin(screen)/30), rl.WHITE)
-    }
-
-    rl.EndMode2D()
+    draw_ui()
 
     draw_code()
 }
