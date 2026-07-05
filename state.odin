@@ -60,34 +60,3 @@ State :: struct {
     in_menu: bool,
     show_debug: bool,
 }
-
-state := State {
-    cam = {
-        position = {0, 5, 5},
-        up       = {0, 1, 0},
-        fovy     = 90,
-        projection = .PERSPECTIVE,
-    },
-    ui_cam = {zoom=1},
-    
-    movement = {
-        move_speed = 4.3,
-        gravity = 32,
-        jump_strength = 8.4,
-        yaw = 90,
-    },
-    
-    input = {
-        mouse_sensitivity = 0.1,
-        use_key_input = true,
-        use_mouse_input = true,
-    },
-    
-    interaction = {
-        looking_at_block = false,
-    },
-    
-    collider = {
-        collider_size = Vec3{0.5, 2, 0.5},
-    },
-}

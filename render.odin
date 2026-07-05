@@ -1,7 +1,8 @@
 package voxel_game
 
 import rl "vendor:raylib"
-
+import rlgl "vendor:raylib/rlgl"
+import "core:math/linalg"
 UV_NORMAL :: [8]f32{ 0,0, 0,1, 1,1, 1,0 }
 UV_ROT_90 :: [8]f32{ 0,1, 1,1, 1,0, 0,0 }
 UV_ROT_180:: [8]f32{ 1,1, 1,0, 0,0, 0,1 }
@@ -356,4 +357,86 @@ get_redstone_texture :: proc(on: bool, connections: [Cardinal]bool) -> rl.Render
     }
     
     return redstone_render_texture[state]
+}
+
+draw_world_chunks :: proc(state: ^State) {
+    for do_transparent in ([]bool{false, true}) {
+        for c_pos, chunk in state.world.chunks {
+            for block_key, i in chunk.block_keys {
+                if block_key == 0 do continue
+                block := chunk.palette[block_key]
+                info := block_infos[block.type]
+                if do_transparent != (.TEXTURE_TRANSPARENT in info.flags) do continue
+
+                l_pos := unflatten(i)
+                global_pos := get_global_pos(c_pos, l_pos)
+                p := to_vec3(global_pos)
+                model_to_draw := get_block_model(block)
+                
+                if block.type == .Redstone {
+                    redstone := block.data.redstone
+                    redstone_tex := get_redstone_texture(redstone.on, redstone.connections).texture
+                    rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, redstone_tex)
+                    if info.model != .Decal && info.model != .Stairs do rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, redstone_tex)
+                } else {
+                    if info.model == .Decal {
+                        t := block_textures[info.textures[.Top]]
+                        rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, t)
+                    } else {
+                        for face in Block_Face {
+                            t := block_textures[info.textures[face]]
+                            rl.SetMaterialTexture(&model_to_draw.materials[int(face)], .ALBEDO, t)
+                        }
+                    }
+                }
+                
+                rl.DrawModel(model_to_draw, p, 1, rl.WHITE)
+
+                //Arrow
+                if arrow, ok := block.data.arrow.(Arrow); ok {
+                    from_center := p
+                    to_center   := to_vec3(arrow.to)
+                    diff        := to_center - from_center
+                    total_dist  := linalg.length(diff)
+                    if total_dist > 0.001 {
+                        dir       := diff / total_dist
+                        tile_size : f32 = 0.5
+                        num_tiles := int(total_dist / tile_size)
+                        step      := total_dist / f32(max(num_tiles, 1))
+                        half      := tile_size * 0.5
+                        // Pick a reference vector not parallel to dir to build stable quad axes
+                        ref       := Vec3{0, 1, 0} if abs(dir.y) < 0.99 else Vec3{0, 0, 1}
+                        right     := linalg.normalize(linalg.cross(dir, ref))
+                        up        := linalg.normalize(linalg.cross(right, dir))
+
+                        rlgl.DisableBackfaceCulling()
+                        rlgl.SetTexture(arrow_texture.id)
+                        rlgl.Begin(rlgl.QUADS)
+                        rlgl.Color4ub(255, 255, 255, 255)
+                        for t in 0..=num_tiles {
+                            c := from_center + dir * (f32(t) * step + step * 0.5)
+                            // Quad corners: U axis = dir, V axis = up (perpendicular to dir)
+                            bl := c - dir*half - up*half
+                            br := c + dir*half - up*half
+                            tr := c + dir*half + up*half
+                            tl := c - dir*half + up*half
+                            // Front face
+                            rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
+                            rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
+                            rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
+                            rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
+                            // Back face (mirrored U so texture reads correctly from behind)
+                            rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
+                            rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
+                            rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
+                            rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
+                        }
+                        rlgl.End()
+                        rlgl.SetTexture(0)
+                        rlgl.EnableBackfaceCulling()
+                    }
+                }
+            }
+        }
+    }
 }

@@ -7,11 +7,11 @@ Code_State :: struct {
     in_code: bool,
 }
 
-init_code :: proc() {
+init_code :: proc(state: ^State) {
     vcode.init()
 }
 
-update_code :: proc() {
+update_code :: proc(state: ^State) {
     if rl.IsKeyPressed(.C) {
         state.code.in_code = !state.code.in_code
         if state.code.in_code {
@@ -25,7 +25,7 @@ update_code :: proc() {
     vcode.update()
 }
 
-draw_code :: proc() {
+draw_code :: proc(state: ^State) {
     if !state.code.in_code do return
     vcode.draw()
 }

@@ -242,20 +242,20 @@ Arrow :: struct {
     to: [3]i32
 }
 
-block_place :: proc() {
+block_place :: proc(state: ^State) {
     block := state.held_block
     fmt.println(state.place_dir)
-    if is_overlapping(state.cam.position, state.place_target, block) do return
-    if world_get_block(state.place_target).type != .Air do return
+    if is_overlapping(state, state.cam.position, state.place_target, block) do return
+    if world_get_block(state, state.place_target).type != .Air do return
     #partial switch block.type {
     case .Redstone:
-        place_redstone()
+        place_redstone(state)
     case:
-        place_base_block(block)
+        place_base_block(state, block)
     }
-    raycast()
+    raycast(state)
 }
-place_base_block :: proc(block: Block) {
+place_base_block :: proc(state: ^State, block: Block) {
     block := block
     info := block_infos[block.type]
     if .HAS_CARDINAL in info.flags {
@@ -264,9 +264,9 @@ place_base_block :: proc(block: Block) {
     if .HAS_BLOCK_FACE in info.flags {
         block.data.facing = state.hit_face
     }
-    world_set_block(state.place_target, block)
+    world_set_block(state, state.place_target, block)
 }
-place_redstone :: proc() {
+place_redstone :: proc(state: ^State) {
     pos1 := state.place_pos
     pos2 := pos1 + state.place_dir_normal
     pos1_i := state.place_target
@@ -276,9 +276,9 @@ place_redstone :: proc() {
 
     redstone := Block{.Redstone, {redstone={true, state.hit_face, {}}}}
     redstone.data.redstone.connections[dir1] = true
-    world_set_block(pos1_i, redstone)
+    world_set_block(state, pos1_i, redstone)
 
     redstone2 := Block{.Redstone, {redstone={true, state.hit_face, {}}}}
     redstone2.data.redstone.connections[dir2] = true
-    world_set_block(pos2_i, redstone2)
+    world_set_block(state, pos2_i, redstone2)
 }
