@@ -19,6 +19,7 @@ Text_Style :: struct {
     font_size: f32,
     font: Font,
 }
+Texture :: rl.Texture2D
 
 Anchor :: enum {
     Top_Left, Top_Center, Top_Right,
@@ -193,7 +194,13 @@ overlaps :: proc(a: Rec, b: Rec) -> bool {
 draw_rec :: proc(rec: Rec, color: Color) {
     rl.DrawRectangleRec({rec.pos.x, rec.pos.y, rec.size.x, rec.size.y}, color)
 }
-draw_rec_texture :: proc(rec: Rec, texture: rl.Texture, color := rl.WHITE) {
+draw_rec_lines :: proc(rec: Rec, thick: f32, color: Color) {
+    rl.DrawRectangleLinesEx({rec.pos.x, rec.pos.y, rec.size.x, rec.size.y}, thick, color)
+}
+draw_line :: proc(start_pos, end_pos: Vec, thick: f32, color: Color) {
+    rl.DrawLineEx(start_pos, end_pos, thick, color)
+}
+draw_rec_texture :: proc(rec: Rec, texture: Texture, color := rl.WHITE) {
     rl.DrawTexturePro(
         texture, 
         {0, 0, f32(texture.width), f32(texture.height)},

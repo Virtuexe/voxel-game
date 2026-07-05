@@ -1,12 +1,15 @@
 package voxel_game
 
+import ui "raylib-ui"
+
 Item_Type :: enum {
     Dirt, Stone, Cobblestone, Glass, Planks,
     Redstone, Slab, Stairs,
 }
 
 Item_Info :: struct {
-    block: Maybe(Block_Type)
+    block: Maybe(Block_Type),
+    texture: ui.Texture,
 }
 items := [Item_Type]Item_Info{
     .Dirt = {

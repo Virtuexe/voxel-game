@@ -26,6 +26,8 @@ Player_Input :: struct {
 
 Player_Interaction :: struct {
     held_block: Block,
+    hotbar: [9]Block,
+    hotbar_index: int,
     looking_at_block: bool,
     look_target: [3]i32,
     place_pos: Vec3,

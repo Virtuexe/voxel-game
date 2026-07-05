@@ -95,7 +95,7 @@ init :: proc() {
 
     world_init()
 
-    state.held_block = {.Dirt, {}}
+    init_inventory()
 
     state.apply_gravity = true
     state.is_flying = false
@@ -170,30 +170,15 @@ update :: proc() {
     raycast()
     //INTERACTION
     if state.use_key_input {
-        if rl.IsKeyDown(.ONE) {
-            state.held_block = {.Dirt, {}}
-        }
-        if rl.IsKeyDown(.TWO) {
-            state.held_block = {.Stone, {}}
-        }
-        if rl.IsKeyDown(.THREE) {
-            state.held_block = {.Cobblestone, {}}
-        }
-        if rl.IsKeyDown(.FOUR) {
-            state.held_block = {.Glass, {}}
-        }
-        if rl.IsKeyDown(.FIVE) {
-            state.held_block = {.Planks, {}}
-        }
-        if rl.IsKeyDown(.SIX) {
-            state.held_block = {.Redstone, {}}
-        }
-        if rl.IsKeyDown(.SEVEN) {
-            state.held_block = {.Slab, {}}
-        }
-        if rl.IsKeyDown(.EIGHT) {
-            state.held_block = {.Stairs, {}}
-        }
+        if rl.IsKeyPressed(.ONE) { state.hotbar_index = 0; state.held_block = state.hotbar[0] }
+        if rl.IsKeyPressed(.TWO) { state.hotbar_index = 1; state.held_block = state.hotbar[1] }
+        if rl.IsKeyPressed(.THREE) { state.hotbar_index = 2; state.held_block = state.hotbar[2] }
+        if rl.IsKeyPressed(.FOUR) { state.hotbar_index = 3; state.held_block = state.hotbar[3] }
+        if rl.IsKeyPressed(.FIVE) { state.hotbar_index = 4; state.held_block = state.hotbar[4] }
+        if rl.IsKeyPressed(.SIX) { state.hotbar_index = 5; state.held_block = state.hotbar[5] }
+        if rl.IsKeyPressed(.SEVEN) { state.hotbar_index = 6; state.held_block = state.hotbar[6] }
+        if rl.IsKeyPressed(.EIGHT) { state.hotbar_index = 7; state.held_block = state.hotbar[7] }
+        if rl.IsKeyPressed(.NINE) { state.hotbar_index = 8; state.held_block = state.hotbar[8] }
     }
 
     if state.use_mouse_input {
@@ -333,11 +318,11 @@ draw :: proc() {
                     if info.model != .Decal && info.model != .Stairs do rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, redstone_tex)
                 } else {
                     if info.model == .Decal {
-                        t := block_textures[info.textures[.Top]].texture
+                        t := block_textures[info.textures[.Top]]
                         rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, t)
                     } else {
                         for face in Block_Face {
-                            t := block_textures[info.textures[face]].texture
+                            t := block_textures[info.textures[face]]
                             rl.SetMaterialTexture(&model_to_draw.materials[int(face)], .ALBEDO, t)
                         }
                     }

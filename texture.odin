@@ -16,16 +16,12 @@ block_textures_paths := [Block_Texture_Type]cstring {
     .Slab_Top = "assets/slab_top.png",
 }
 
-Block_Texture :: struct {
-    texture: rl.Texture2D,
-}
-
-block_textures: [Block_Texture_Type]Block_Texture
+block_textures: [Block_Texture_Type]rl.Texture2D
 
 init_block_textures :: proc() {
     for type in Block_Texture_Type {
         path := block_textures_paths[type]
-        block_textures[type].texture = rl.LoadTexture(path)
+        block_textures[type] = rl.LoadTexture(path)
     }
 }
 
