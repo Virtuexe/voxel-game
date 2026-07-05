@@ -182,6 +182,17 @@ update :: proc() {
     }
 
     if state.use_mouse_input {
+        scroll := rl.GetMouseWheelMove()
+        if scroll > 0 {
+            state.hotbar_index -= 1
+            if state.hotbar_index < 0 do state.hotbar_index = 8
+            state.held_block = state.hotbar[state.hotbar_index]
+        } else if scroll < 0 {
+            state.hotbar_index += 1
+            if state.hotbar_index > 8 do state.hotbar_index = 0
+            state.held_block = state.hotbar[state.hotbar_index]
+        }
+
         if rl.IsMouseButtonPressed(.LEFT) && state.looking_at_block {
             set_target_block(Block{.Air, {}})
             raycast()

@@ -13,8 +13,8 @@ world_init :: proc() {
     world = &state.world
     world.chunks = make(map[[3]i32]^Chunk)
     
-    for x in -16..<16 {
-        for z in -16..<16 {
+    for x in -8..<8 {
+        for z in -8..<8 {
             world_set_block({i32(x), 0, i32(z)}, {.Stone, {}})
             world_set_block({i32(x), 1, i32(z)}, {.Dirt, {}})
         }

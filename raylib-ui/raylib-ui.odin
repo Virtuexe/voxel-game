@@ -321,3 +321,17 @@ cut :: proc(target: ^Rec, side: Side, amount: f32) -> (piece: Rec) {
 
     return piece
 }
+
+list :: proc(item: ^Rec, pos: Vec, element_size: Vec, index: int, anchor: Anchor) {
+    item.size = element_size
+    item.pos = pos
+    
+    #partial switch anchor {
+    case .Top_Left, .Center_Left, .Bottom_Left:
+        item.pos.x += element_size.x * f32(index)
+    case .Top_Right, .Center_Right, .Bottom_Right:
+        item.pos.x -= element_size.x * f32(index)
+    case .Top_Center, .Center, .Bottom_Center:
+        item.pos.y += element_size.y * f32(index)
+    }
+}
