@@ -4,19 +4,17 @@ import rlgl "vendor:raylib/rlgl"
 import "core:fmt"
 
 //RENDER
-block_model: rl.Model
-slab_model: rl.Model
-decal_model: rl.Model
-stairs_model: rl.Model
-block_model_bbox: rl.BoundingBox
-slab_model_bbox: rl.BoundingBox
-decal_model_bbox: rl.BoundingBox
-stairs_model_bbox: rl.BoundingBox
+Block_Model_Data :: struct {
+    model: rl.Model,
+    visual_bbox: rl.BoundingBox,
+    collision_bboxes: []rl.BoundingBox,
+}
+block_models: [Block_Model]Block_Model_Data
 redstone_render_texture: [(1<<len(Cardinal))*2]rl.RenderTexture2D
 
 Block_Type :: enum {
     Air, Dirt, Stone, Cobblestone, Glass, Planks,
-    Redstone, Slab, Stairs,
+    Redstone, Slab, Stairs, PistonHead
 }
 
 Block_Info :: struct {
@@ -32,7 +30,7 @@ Block_Flag :: enum {
     HAS_CARDINAL,
     HAS_BLOCK_FACE,
 }
-Block_Model :: enum {Cube, Slab, Decal, Stairs}
+Block_Model :: enum {Cube, Slab, Decal, Stairs, PistonHead}
 block_infos := [Block_Type]Block_Info {
     .Air = {
         flags = {},
@@ -77,6 +75,11 @@ block_infos := [Block_Type]Block_Info {
         item = .Stairs,
         model = .Stairs,
     },
+    .PistonHead = {
+        flags = {.HAS_BLOCK_FACE},
+        item = .PistonHead,
+        model = .PistonHead,
+    }
 }
 
 fill_textures :: proc(tex: Block_Texture_Type) -> [Block_Face]Block_Texture_Type {
@@ -101,6 +104,8 @@ init_block_infos :: proc() {
     
     block_infos[.Stairs].textures = fill_textures(.Planks)
     block_infos[.Stairs].textures[.Top] = .Stone
+    
+    block_infos[.PistonHead].textures = fill_textures(.Planks)
 }
 
 block_init :: proc() {
@@ -109,31 +114,18 @@ block_init :: proc() {
     init_slab_model()
     init_decal_model()
     init_stairs_model()
+    init_piston_head_model()
 }
 //TODO unload textures
 
 // Returns the base model for a block type (no transform applied)
 get_base_model :: proc(block: Block) -> rl.Model {
-    info := block_infos[block.type]
-    switch info.model {
-    case .Slab:   return slab_model
-    case .Decal:  return decal_model
-    case .Cube:   return block_model
-    case .Stairs: return stairs_model
-    }
-    return block_model
+    return block_models[block_infos[block.type].model].model
 }
 
 // Returns the base bounding box for a block type (unrotated, local space)
 get_base_bbox :: proc(block: Block) -> rl.BoundingBox {
-    info := block_infos[block.type]
-    switch info.model {
-    case .Slab:   return slab_model_bbox
-    case .Decal:  return decal_model_bbox
-    case .Cube:   return block_model_bbox
-    case .Stairs: return stairs_model_bbox
-    }
-    return block_model_bbox
+    return block_models[block_infos[block.type].model].visual_bbox
 }
 
 // Returns the model with the correct rotation transform applied.
@@ -201,22 +193,16 @@ rotate_bbox :: proc(base: rl.BoundingBox, rot: rl.Matrix) -> rl.BoundingBox {
     return rl.BoundingBox{new_min, new_max}
 }
 
-// Returns 1 or 2 bboxes for a block in local space (relative to block origin).
-// Caller must pass a buffer of at least 2 to hold results.
+// Returns 1 or more bboxes for a block in local space (relative to block origin).
+// Caller must pass a buffer of at least max_collisions to hold results.
 // Returns the slice of filled bboxes.
-get_block_bboxes :: proc(block: Block, buf: ^[2]rl.BoundingBox) -> []rl.BoundingBox {
-    if block.type == .Stairs {
-        rot := get_block_transform(block)
-        // Bottom step: full width/depth, lower half
-        bottom := rl.BoundingBox{min={-0.5,-0.5,-0.5}, max={0.5, 0.0, 0.5}}
-        // Top step: full width, back half, upper half (south-facing default)
-        top    := rl.BoundingBox{min={-0.5, 0.0,-0.5}, max={0.5, 0.5, 0.0}}
-        buf[0] = rotate_bbox(bottom, rot)
-        buf[1] = rotate_bbox(top, rot)
-        return buf[:]
+get_block_bboxes :: proc(block: Block, buf: ^[8]rl.BoundingBox) -> []rl.BoundingBox {
+    model_data := block_models[block_infos[block.type].model]
+    rot := get_block_transform(block)
+    for bbox, i in model_data.collision_bboxes {
+        buf[i] = rotate_bbox(bbox, rot)
     }
-    buf[0] = get_block_bbox(block)
-    return buf[:1]
+    return buf[:len(model_data.collision_bboxes)]
 }
 
 //GAMEPLAY

@@ -3,6 +3,7 @@ package voxel_game
 import rl "vendor:raylib"
 import rlgl "vendor:raylib/rlgl"
 import "core:math/linalg"
+import "core:slice"
 UV_NORMAL :: [8]f32{ 0,0, 0,1, 1,1, 1,0 }
 UV_ROT_90 :: [8]f32{ 0,1, 1,1, 1,0, 0,0 }
 UV_ROT_180:: [8]f32{ 1,1, 1,0, 0,0, 0,1 }
@@ -61,247 +62,111 @@ init_shaders :: proc() {
     block_shader = rl.LoadShaderFromMemory(cstring(raw_data(vs)), cstring(raw_data(fs)))
 }
 
-UV_HALF_ROT_90  :: [8]f32{ 0,1, 1,1, 1,0.5, 0,0.5 }
-UV_HALF_ROT_180 :: [8]f32{ 1,1, 1,0.5, 0,0.5, 0,1 }
-
-make_multi_material_model :: proc(is_slab: bool) -> rl.Model {
-    model: rl.Model
-    model.transform = rl.Matrix(1)
-    model.meshCount = 6
-    model.materialCount = 6
-    model.meshes = cast(^rl.Mesh)rl.MemAlloc(u32(size_of(rl.Mesh) * 6))
-    model.materials = cast(^rl.Material)rl.MemAlloc(u32(size_of(rl.Material) * 6))
-    model.meshMaterial = cast(^i32)rl.MemAlloc(u32(size_of(i32) * 6))
-    
-    for i in 0..<6 {
-        model.materials[i] = rl.LoadMaterialDefault()
-        model.materials[i].shader = block_shader
-        model.meshMaterial[i] = i32(i)
-    }
-    
-    for i in 0..<6 {
-        face_enum := Block_Face(i)
-        mesh := rl.GenMeshCube(1, is_slab ? 0.5 : 1, 1)
-        
-        coords := cast([^]f32)mesh.texcoords
-        if is_slab {
-            set_face_uvs(coords, 0, UV_HALF_ROT_90)  
-            set_face_uvs(coords, 1, UV_HALF_ROT_180) 
-            set_face_uvs(coords, 2, UV_NORMAL) 
-            set_face_uvs(coords, 3, UV_ROT_90)  
-            set_face_uvs(coords, 4, UV_HALF_ROT_180)  
-            set_face_uvs(coords, 5, UV_HALF_ROT_90) 
-        } else {
-            set_face_uvs(coords, 0, UV_ROT_90)  
-            set_face_uvs(coords, 1, UV_ROT_180) 
-            set_face_uvs(coords, 2, UV_NORMAL) 
-            set_face_uvs(coords, 3, UV_ROT_90)  
-            set_face_uvs(coords, 4, UV_ROT_180)  
-            set_face_uvs(coords, 5, UV_ROT_90) 
-        }
-        rl.UpdateMeshBuffer(mesh, 1, mesh.texcoords, mesh.vertexCount * 2 * size_of(f32), 0)
-        
-        face_idx: int
-        switch face_enum {
-        case .Top: face_idx = 2
-        case .Bottom: face_idx = 3
-        case .North: face_idx = 1
-        case .South: face_idx = 0
-        case .East: face_idx = 4
-        case .West: face_idx = 5
-        }
-
-        faces := []int{face_idx}
-        indices := cast([^]u16)mesh.indices
-        
-        temp_indices: [36]u16
-        for j in 0..<36 { temp_indices[j] = indices[j] }
-        
-        idx := 0
-        for face in faces {
-            for j in 0..<6 {
-                indices[idx] = temp_indices[face * 6 + j]
-                idx += 1
-            }
-        }
-        
-        mesh.triangleCount = i32(len(faces) * 2)
-        
-        // Update GPU index buffer (index 6 is INDEX_BUFFER)
-        rl.UpdateMeshBuffer(mesh, 6, mesh.indices, mesh.triangleCount * 3 * size_of(u16), 0)
-        
-        model.meshes[i] = mesh
-    }
-    
-    return model
-}
-
 init_block_model :: proc() {
-    block_model = make_multi_material_model(false)
-    block_model_bbox = rl.GetModelBoundingBox(block_model)
+    b := builder_init()
+    defer builder_destroy(&b)
+    builder_add_box(&b, {0, 0, 0}, {1, 1, 1})
+    m := builder_build(&b)
+    block_models[.Cube] = {
+        model = m,
+        visual_bbox = builder_get_visual_bbox(&b),
+        collision_bboxes = slice.clone(b.collision_bboxes[:]),
+    }
 }
 
 init_slab_model :: proc() {
-    slab_model = make_multi_material_model(true)
-    for i in 0..<slab_model.meshCount {
-        mesh := &slab_model.meshes[i]
-        vertices := cast([^]f32)mesh.vertices
-        for v in 0..<mesh.vertexCount {
-            vertices[v * 3 + 1] -= 0.25
-        }
-        rl.UpdateMeshBuffer(mesh^, 0, mesh.vertices, mesh.vertexCount * 3 * size_of(f32), 0)
+    b := builder_init()
+    defer builder_destroy(&b)
+    builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1})
+    m := builder_build(&b)
+    block_models[.Slab] = {
+        model = m,
+        visual_bbox = builder_get_visual_bbox(&b),
+        collision_bboxes = slice.clone(b.collision_bboxes[:]),
     }
-    slab_model_bbox = rl.GetModelBoundingBox(slab_model)
 }
 
 init_decal_model :: proc() {
-    decal_model = rl.LoadModelFromMesh(rl.GenMeshPlane(1, 1, 1, 1))
-    decal_model.materials[0].shader = block_shader
-    for i in 0..<decal_model.meshCount {
-        mesh := &decal_model.meshes[i]
-        vertices := cast([^]f32)mesh.vertices
-        for v in 0..<mesh.vertexCount {
-            vertices[v * 3 + 1] -= 0.499
-        }
-        rl.UpdateMeshBuffer(mesh^, 0, mesh.vertices, mesh.vertexCount * 3 * size_of(f32), 0)
+    b := builder_init()
+    defer builder_destroy(&b)
+    // Decal sits slightly above y=0 to prevent z-fighting
+    builder_add_quad(&b, .Top, {0, 0.001, 0}, {1, 0.001, 1})
+    builder_add_collision_box(&b, {0, 0, 0}, {1, 0.01, 1})
+    m := builder_build(&b)
+    block_models[.Decal] = {
+        model = m,
+        visual_bbox = builder_get_visual_bbox(&b),
+        collision_bboxes = slice.clone(b.collision_bboxes[:]),
     }
-    decal_model_bbox = rl.GetModelBoundingBox(decal_model)
     
     img := rl.GenImageColor(1, 1, rl.WHITE)
     white_texture = rl.LoadTextureFromImage(img)
     rl.UnloadImage(img)
 }
 
-// Stair faces south (+Z) by default; HAS_CARDINAL rotates at draw time.
-// Single mesh, 10 visible outer faces only — no internal shared faces (no z-fighting).
-// UVs are proportional to face size (half-unit faces use 0..0.5 range).
 init_stairs_model :: proc() {
-    stairs_model.transform     = rl.Matrix(1)
-    stairs_model.meshCount     = 6
-    stairs_model.materialCount = 6
-    stairs_model.meshes       = cast(^rl.Mesh)    rl.MemAlloc(u32(size_of(rl.Mesh) * 6))
-    stairs_model.materials    = cast(^rl.Material)rl.MemAlloc(u32(size_of(rl.Material) * 6))
-    stairs_model.meshMaterial = cast(^i32)        rl.MemAlloc(u32(size_of(i32) * 6))
+    b := builder_init()
+    defer builder_destroy(&b)
 
-    for i in 0..<6 {
-        stairs_model.materials[i] = rl.LoadMaterialDefault()
-        stairs_model.materials[i].shader = block_shader
-        stairs_model.meshMaterial[i] = i32(i)
+    // ------- Bottom face (y=0, full 1×1) normal -Y -------
+    builder_add_quad(&b, .Bottom, {0, 0, 0}, {1, 0, 1})
+    
+    // ------- Back face (z=0, full 1×1) normal -Z -------
+    builder_add_quad(&b, .North, {0, 0, 0}, {1, 1, 0})
+    
+    // ------- Front lower (z=1, y=0..0.5, 1×0.5) normal +Z -------
+    builder_add_quad(&b, .South, {0, 0, 1}, {1, 0.5, 1})
+    
+    // ------- Step riser (z=0.5, y=0.5..1, 1×0.5) normal +Z -------
+    builder_add_quad(&b, .South, {0, 0.5, 0.5}, {1, 1, 0.5})
+    
+    // ------- Tread top (y=0.5, z=0.5..1, 1×0.5 depth) normal +Y -------
+    builder_add_quad(&b, .Top, {0, 0.5, 0.5}, {1, 0.5, 1})
+    
+    // ------- Cap top (y=1, z=0..0.5, 1×0.5 depth) normal +Y -------
+    builder_add_quad(&b, .Top, {0, 1, 0}, {1, 1, 0.5})
+    
+    // ------- Left lower (x=0, y=0..0.5, z full, 1×0.5) normal -X -------
+    builder_add_quad(&b, .West, {0, 0, 0}, {0, 0.5, 1})
+    
+    // ------- Left upper (x=0, y=0.5..1, z=0..0.5, 0.5×0.5) normal -X -------
+    builder_add_quad(&b, .West, {0, 0.5, 0}, {0, 1, 0.5})
+    
+    // ------- Right lower (x=1, y=0..0.5, z full, 1×0.5) normal +X -------
+    builder_add_quad(&b, .East, {1, 0, 0}, {1, 0.5, 1})
+    
+    // ------- Right upper (x=1, y=0.5..1, z=0..0.5, 0.5×0.5) normal +X -------
+    builder_add_quad(&b, .East, {1, 0.5, 0}, {1, 1, 0.5})
+    
+    builder_add_collision_box(&b, {0, 0, 0}, {1, 0.5, 1})
+    builder_add_collision_box(&b, {0, 0.5, 0}, {1, 1, 0.5})
+    
+    m := builder_build(&b)
+    block_models[.Stairs] = {
+        model = m,
+        visual_bbox = builder_get_visual_bbox(&b),
+        collision_bboxes = slice.clone(b.collision_bboxes[:]),
     }
-
-    allocate_mesh :: proc(num_quads: int) -> rl.Mesh {
-        mesh: rl.Mesh
-        vcount := num_quads * 4
-        tcount := num_quads * 2
-        mesh.vertexCount = i32(vcount)
-        mesh.triangleCount = i32(tcount)
-        if vcount > 0 {
-            mesh.vertices  = cast([^]f32)rl.MemAlloc(u32(vcount * 3 * size_of(f32)))
-            mesh.normals   = cast([^]f32)rl.MemAlloc(u32(vcount * 3 * size_of(f32)))
-            mesh.texcoords = cast([^]f32)rl.MemAlloc(u32(vcount * 2 * size_of(f32)))
-            mesh.indices   = cast([^]u16)rl.MemAlloc(u32(tcount * 3 * size_of(u16)))
-        }
-        return mesh
-    }
-
-    stairs_model.meshes[int(Block_Face.Top)]    = allocate_mesh(2)
-    stairs_model.meshes[int(Block_Face.Bottom)] = allocate_mesh(1)
-    stairs_model.meshes[int(Block_Face.North)]  = allocate_mesh(1)
-    stairs_model.meshes[int(Block_Face.South)]  = allocate_mesh(2)
-    stairs_model.meshes[int(Block_Face.East)]   = allocate_mesh(2)
-    stairs_model.meshes[int(Block_Face.West)]   = allocate_mesh(2)
-
-    vis := [6]int{}
-    nis := [6]int{}
-    tis := [6]int{}
-    iis := [6]int{}
-
-    quad :: proc(m: []rl.Mesh, face: Block_Face, vis, nis, tis, iis: ^[6]int,
-                 p: [4][3]f32, norm: [3]f32, uv: [4][2]f32) {
-        fi := int(face)
-        mesh := &m[fi]
-        vb := cast([^]f32)mesh.vertices; nb := cast([^]f32)mesh.normals
-        tb := cast([^]f32)mesh.texcoords; ib := cast([^]u16)mesh.indices
-        base := u16(vis[fi] / 3)
-        for k in 0..<4 {
-            vb[vis[fi]  ]=p[k][0]; vb[vis[fi]+1]=p[k][1]; vb[vis[fi]+2]=p[k][2]; vis[fi]+=3
-            nb[nis[fi]  ]=norm[0]; nb[nis[fi]+1]=norm[1]; nb[nis[fi]+2]=norm[2]; nis[fi]+=3
-            tb[tis[fi]  ]=uv[k][0]; tb[tis[fi]+1]=uv[k][1]; tis[fi]+=2
-        }
-        ib[iis[fi]]=base; ib[iis[fi]+1]=base+1; ib[iis[fi]+2]=base+2
-        ib[iis[fi]+3]=base; ib[iis[fi]+4]=base+2; ib[iis[fi]+5]=base+3
-        iis[fi]+=6
-    }
-
-    meshes := stairs_model.meshes[:6]
-
-    // ------- Bottom face (y=-0.5, full 1×1) normal -Y -------
-    {
-        p  := [4][3]f32{{-0.5,-0.5,-0.5},{0.5,-0.5,-0.5},{0.5,-0.5,0.5},{-0.5,-0.5,0.5}}
-        uv := [4][2]f32{{0,0},{1,0},{1,1},{0,1}}
-        quad(meshes, .Bottom, &vis, &nis, &tis, &iis, p, {0,-1,0}, uv)
-    }
-    // ------- Back face (z=-0.5, full 1×1) normal -Z -------
-    {
-        p  := [4][3]f32{{0.5,-0.5,-0.5},{-0.5,-0.5,-0.5},{-0.5,0.5,-0.5},{0.5,0.5,-0.5}}
-        uv := [4][2]f32{{0,1},{1,1},{1,0},{0,0}}
-        quad(meshes, .North, &vis, &nis, &tis, &iis, p, {0,0,-1}, uv)
-    }
-    // ------- Front lower (z=0.5, y=-0.5..0, 1×0.5) normal +Z -------
-    {
-        p  := [4][3]f32{{-0.5,-0.5,0.5},{0.5,-0.5,0.5},{0.5,0.0,0.5},{-0.5,0.0,0.5}}
-        uv := [4][2]f32{{0,0.5},{1,0.5},{1,0},{0,0}}
-        quad(meshes, .South, &vis, &nis, &tis, &iis, p, {0,0,1}, uv)
-    }
-    // ------- Step riser (z=0, y=0..0.5, 1×0.5) normal +Z -------
-    {
-        p  := [4][3]f32{{-0.5,0.0,0.0},{0.5,0.0,0.0},{0.5,0.5,0.0},{-0.5,0.5,0.0}}
-        uv := [4][2]f32{{0,0.5},{1,0.5},{1,0},{0,0}}
-        quad(meshes, .South, &vis, &nis, &tis, &iis, p, {0,0,1}, uv)
-    }
-    // ------- Tread top (y=0, z=0..0.5, 1×0.5 depth) normal +Y -------
-    {
-        p  := [4][3]f32{{-0.5,0.0,0.5},{0.5,0.0,0.5},{0.5,0.0,0.0},{-0.5,0.0,0.0}}
-        uv := [4][2]f32{{0,0},{1,0},{1,0.5},{0,0.5}}
-        quad(meshes, .Top, &vis, &nis, &tis, &iis, p, {0,1,0}, uv)
-    }
-    // ------- Cap top (y=0.5, z=-0.5..0, 1×0.5 depth) normal +Y -------
-    {
-        p  := [4][3]f32{{-0.5,0.5,0.0},{0.5,0.5,0.0},{0.5,0.5,-0.5},{-0.5,0.5,-0.5}}
-        uv := [4][2]f32{{0,0},{1,0},{1,0.5},{0,0.5}}
-        quad(meshes, .Top, &vis, &nis, &tis, &iis, p, {0,1,0}, uv)
-    }
-    // ------- Left lower (x=-0.5, y=-0.5..0, z full, 1×0.5) normal -X -------
-    {
-        p  := [4][3]f32{{-0.5,0.0,0.5},{-0.5,0.0,-0.5},{-0.5,-0.5,-0.5},{-0.5,-0.5,0.5}}
-        uv := [4][2]f32{{0,0},{1,0},{1,0.5},{0,0.5}}
-        quad(meshes, .West, &vis, &nis, &tis, &iis, p, {-1,0,0}, uv)
-    }
-    // ------- Left upper (x=-0.5, y=0..0.5, z=-0.5..0, 0.5×0.5) normal -X -------
-    {
-        p  := [4][3]f32{{-0.5,0.5,0.0},{-0.5,0.5,-0.5},{-0.5,0.0,-0.5},{-0.5,0.0,0.0}}
-        uv := [4][2]f32{{0,0},{0.5,0},{0.5,0.5},{0,0.5}}
-        quad(meshes, .West, &vis, &nis, &tis, &iis, p, {-1,0,0}, uv)
-    }
-    // ------- Right lower (x=0.5, y=-0.5..0, z full, 1×0.5) normal +X -------
-    {
-        p  := [4][3]f32{{0.5,0.0,-0.5},{0.5,0.0,0.5},{0.5,-0.5,0.5},{0.5,-0.5,-0.5}}
-        uv := [4][2]f32{{0,0},{1,0},{1,0.5},{0,0.5}}
-        quad(meshes, .East, &vis, &nis, &tis, &iis, p, {1,0,0}, uv)
-    }
-    // ------- Right upper (x=0.5, y=0..0.5, z=-0.5..0, 0.5×0.5) normal +X -------
-    {
-        p  := [4][3]f32{{0.5,0.5,-0.5},{0.5,0.5,0.0},{0.5,0.0,0.0},{0.5,0.0,-0.5}}
-        uv := [4][2]f32{{0,0},{0.5,0},{0.5,0.5},{0,0.5}}
-        quad(meshes, .East, &vis, &nis, &tis, &iis, p, {1,0,0}, uv)
-    }
-
-    for i in 0..<6 {
-        rl.UploadMesh(&stairs_model.meshes[i], false)
-    }
-
-    stairs_model_bbox = rl.GetModelBoundingBox(stairs_model)
 }
+
+init_piston_head_model :: proc() {
+    b := builder_init()
+    defer builder_destroy(&b)
+    
+    // The pushing face/base (y=0 to y=0.25)
+    builder_add_box(&b, {0, 0, 0}, {1, 0.25, 1})
+    // The arm (y=0.25 to y=1.0)
+    builder_add_box(&b, {0.375, 0.25, 0.375}, {0.625, 1.25, 0.625})
+    
+    m := builder_build(&b)
+    block_models[.PistonHead] = {
+        model = m,
+        visual_bbox = builder_get_visual_bbox(&b),
+        collision_bboxes = slice.clone(b.collision_bboxes[:]),
+    }
+}
+
+
 
 gen_redstone_textures :: proc() {
     for &texture, state in redstone_render_texture {
@@ -376,17 +241,13 @@ draw_world_chunks :: proc(state: ^State) {
                 if block.type == .Redstone {
                     redstone := block.data.redstone
                     redstone_tex := get_redstone_texture(redstone.on, redstone.connections).texture
-                    rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, redstone_tex)
-                    if info.model != .Decal && info.model != .Stairs do rl.SetMaterialTexture(&model_to_draw.materials[1], .ALBEDO, redstone_tex)
+                    for i in 0..<6 {
+                        rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, redstone_tex)
+                    }
                 } else {
-                    if info.model == .Decal {
-                        t := block_textures[info.textures[.Top]]
-                        rl.SetMaterialTexture(&model_to_draw.materials[0], .ALBEDO, t)
-                    } else {
-                        for face in Block_Face {
-                            t := block_textures[info.textures[face]]
-                            rl.SetMaterialTexture(&model_to_draw.materials[int(face)], .ALBEDO, t)
-                        }
+                    for face in Block_Face {
+                        t := block_textures[info.textures[face]]
+                        rl.SetMaterialTexture(&model_to_draw.materials[int(face)], .ALBEDO, t)
                     }
                 }
                 

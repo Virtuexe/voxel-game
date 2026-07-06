@@ -93,7 +93,7 @@ update_player :: proc(state: ^State, delta: f32) {
             if !is_overlapping(state, state.cam.position, global_pos, block) do continue
 
             feet_y := state.cam.position.y - state.collider_offset.y
-            bbox_buf: [2]rl.BoundingBox
+            bbox_buf: [8]rl.BoundingBox
             bboxes := get_block_bboxes(block, &bbox_buf)
             for model_bbox in bboxes {
                 b_min := block_pos + model_bbox.min
@@ -242,7 +242,7 @@ is_overlapping :: proc(state: ^State, player: Vec3, block_pos: [3]i32, block: Bl
     p_max := p_min + state.collider_size
 
     // Test against each sub-bbox (2 for stairs, 1 for everything else)
-    bbox_buf: [2]rl.BoundingBox
+    bbox_buf: [8]rl.BoundingBox
     for model_bbox in get_block_bboxes(block, &bbox_buf) {
         b_min := block_pos + model_bbox.min
         b_max := block_pos + model_bbox.max

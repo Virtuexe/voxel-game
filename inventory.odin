@@ -10,7 +10,7 @@ init_hotbar :: proc(state: ^State) {
         {.Redstone, {}},
         {.Slab, {}},
         {.Stairs, {}},
-        {.Air, {}},
+        {.PistonHead, {}},
     }
     state.held_block = state.hotbar[0]
 }

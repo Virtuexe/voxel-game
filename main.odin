@@ -39,6 +39,12 @@ get_block_transform :: proc(block: Block) -> rl.Matrix {
         if angle != 0 do rot_mat = rl.MatrixRotate(axis, angle) * rot_mat
     }
     
+    if rot_mat != rl.Matrix(1) {
+        offset_to_center := rl.MatrixTranslate(-0.5, -0.5, -0.5)
+        offset_back := rl.MatrixTranslate(0.5, 0.5, 0.5)
+        rot_mat = offset_back * rot_mat * offset_to_center
+    }
+    
     return rot_mat
 }
 
@@ -109,7 +115,12 @@ main :: proc() {
     for texture in redstone_render_texture {
         rl.UnloadRenderTexture(texture)
     }
-    rl.UnloadModel(block_model)
+    for &data in block_models {
+        if data.model.meshCount > 0 {
+            rl.UnloadModel(data.model)
+        }
+        delete(data.collision_bboxes)
+    }
     rl.CloseWindow()
 }
 
