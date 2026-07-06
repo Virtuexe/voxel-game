@@ -129,7 +129,7 @@ update :: proc(ustate: ^UI_State) {
 }
 
 draw :: proc(ustate: ^UI_State) {
-    rl.ClearBackground(rl.BLACK)
+    rl.ClearBackground(rl.Color{17, 17, 17, 255})
     rl.BeginMode3D(state.cam)
     rl.BeginBlendMode(.ALPHA)
 

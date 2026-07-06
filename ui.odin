@@ -5,14 +5,27 @@ import "core:strings"
 import rl "vendor:raylib"
 import ui "raylib-ui"
 
+STORAGE_GRID :: [2]int{20, 10}
+STORAGE_SLOTS :: STORAGE_GRID[0] * STORAGE_GRID[1]
+
 UI_State :: struct {
     view: ui.Rec,
-    hotbar: ui.Rec,
-
     item_size: ui.Vec,
-    items: [9]ui.Rec,
     padding: ui.Vec,
-    padding_boxes: [9]ui.Rec,
+    padding_box: ui.Rec,
+    padding_box_overlap: ui.Rec,
+
+    hotbar: ui.Rec,
+    hotbar_items: [9]ui.Rec,
+    hotbar_padding_boxes: [9]ui.Rec,
+
+    player_storage: ui.Rec,
+    player_storage_items: [STORAGE_SLOTS]ui.Rec,
+    player_storage_padding_boxes: [STORAGE_SLOTS]ui.Rec,
+
+    target_storage: ui.Rec,
+    target_storage_items: [STORAGE_SLOTS]ui.Rec,
+    target_storage_padding_boxes: [STORAGE_SLOTS]ui.Rec,
 }
 
 update_ui :: proc(ustate: ^UI_State) {

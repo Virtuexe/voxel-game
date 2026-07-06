@@ -335,3 +335,24 @@ list :: proc(item: ^Rec, pos: Vec, element_size: Vec, index: int, anchor: Anchor
         item.pos.y += element_size.y * f32(index)
     }
 }
+
+grid :: proc(item: ^Rec, pos: Vec, element_size: Vec, x, y: int, anchor: Anchor) {
+    item.size = element_size
+    item.pos = pos
+    
+    // Horizontal layout
+    #partial switch anchor {
+    case .Top_Left, .Center_Left, .Bottom_Left, .Top_Center, .Center, .Bottom_Center:
+        item.pos.x += element_size.x * f32(x)
+    case .Top_Right, .Center_Right, .Bottom_Right:
+        item.pos.x -= element_size.x * f32(x)
+    }
+
+    // Vertical layout
+    #partial switch anchor {
+    case .Top_Left, .Top_Center, .Top_Right, .Center_Left, .Center, .Center_Right:
+        item.pos.y += element_size.y * f32(y)
+    case .Bottom_Left, .Bottom_Center, .Bottom_Right:
+        item.pos.y -= element_size.y * f32(y)
+    }
+}

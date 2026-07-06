@@ -60,6 +60,7 @@ State :: struct {
     using collider: Player_Collider,
 
     in_menu: bool,
+    show_inventory: bool,
     show_debug: bool,
 }
 

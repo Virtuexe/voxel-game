@@ -13,9 +13,13 @@ update_player :: proc(delta: f32) {
     if rl.IsKeyPressed(.ESCAPE) {
         state.in_menu = !state.in_menu
     }
-    if state.in_menu || state.code.in_code {
+    if rl.IsKeyPressed(.E) {
+        state.show_inventory = !state.show_inventory
+    }
+    if state.in_menu || state.code.in_code || state.show_inventory {
         state.mouse_lock = false
         state.use_mouse_input = false
+        state.use_key_input = false
     }
     if rl.IsKeyPressed(.F3) {
         state.show_debug = !state.show_debug
