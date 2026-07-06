@@ -5,7 +5,7 @@ import "core:strings"
 import rl "vendor:raylib"
 import ui "raylib-ui"
 
-STORAGE_GRID :: [2]int{20, 10}
+STORAGE_GRID :: [2]int{9, 3}
 STORAGE_SLOTS :: STORAGE_GRID[0] * STORAGE_GRID[1]
 
 UI_State :: struct {
@@ -22,6 +22,9 @@ UI_State :: struct {
     player_storage: ui.Rec,
     player_storage_items: [STORAGE_SLOTS]ui.Rec,
     player_storage_padding_boxes: [STORAGE_SLOTS]ui.Rec,
+
+    hovered_item: Maybe(Item_Type),
+    hovered_rec: ui.Rec,
 
     target_storage: ui.Rec,
     target_storage_items: [STORAGE_SLOTS]ui.Rec,

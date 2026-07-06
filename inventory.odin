@@ -19,6 +19,9 @@ init_hotbar :: proc() {
 
 init_inventory :: proc() {
     init_hotbar()
+    state.player_storage[0] = .Dirt
+    state.player_storage[1] = .Glass
+    state.player_storage[2] = .Planks
 }
 
 update_inventory :: proc(ustate: ^UI_State) {
@@ -55,6 +58,42 @@ update_inventory :: proc(ustate: ^UI_State) {
     update_hotbar(ustate)
     if state.show_inventory {
         update_storages(ustate)
+        
+        ustate.hovered_item = nil
+        mouse_pos := ui.get_mouse_pos_local(state.ui_cam)
+        clicked := ui.is_mouse_button_pressed(.LEFT)
+        
+        for i in 0..<9 {
+            if ui.contains_point(ustate.hotbar_padding_boxes[i], mouse_pos) {
+                ustate.hovered_item = state.hotbar[i]
+                ustate.hovered_rec = ustate.hotbar_items[i]
+                if clicked {
+                    temp := state.cursor
+                    state.cursor = state.hotbar[i]
+                    state.hotbar[i] = temp
+                }
+            }
+        }
+        for i in 0..<STORAGE_SLOTS {
+            if ui.contains_point(ustate.target_storage_padding_boxes[i], mouse_pos) {
+                ustate.hovered_item = state.target_storage[i]
+                ustate.hovered_rec = ustate.target_storage_items[i]
+                if clicked {
+                    temp := state.cursor
+                    state.cursor = state.target_storage[i]
+                    state.target_storage[i] = temp
+                }
+            }
+            if ui.contains_point(ustate.player_storage_padding_boxes[i], mouse_pos) {
+                ustate.hovered_item = state.player_storage[i]
+                ustate.hovered_rec = ustate.player_storage_items[i]
+                if clicked {
+                    temp := state.cursor
+                    state.cursor = state.player_storage[i]
+                    state.player_storage[i] = temp
+                }
+            }
+        }
     }
 }
 
@@ -62,7 +101,44 @@ draw_inventory :: proc(ustate: ^UI_State) {
     draw_hotbar(ustate)
     if state.show_inventory {
         draw_storages(ustate)
+        
+        if state.cursor != nil {
+            mouse_pos := ui.get_mouse_pos_local(state.ui_cam)
+            rec := ui.Rec{ size = ustate.item_size }
+            ui.align(&rec, ui.Rec{pos = mouse_pos, size = {0,0}}, .Center)
+            draw_item(rec, textures[items[state.cursor.?].texture])
+        }
+        
+        draw_tooltip(ustate)
     }
+}
+
+import "core:fmt"
+
+draw_tooltip :: proc(ustate: ^UI_State) {
+    if ustate.hovered_item == nil do return
+    if state.cursor != nil do return
+    
+    item := ustate.hovered_item.?
+    name := fmt.tprintf("%v", item)
+    
+    style := ui.make_text_style(ustate.item_size.y * 0.4)
+    text_size := ui.measure_text_size(name, style)
+    
+    padding := ui.Vec{style.font_size * 0.5, style.font_size * 0.5}
+    tooltip_rec := ui.Rec{ size = text_size + padding * 2 }
+    
+    mouse_pos := ui.get_mouse_pos_local(state.ui_cam)
+    cursor_rec := ui.Rec{ {}, {ustate.item_size.x * 0.1, ustate.item_size.y * 0} }
+    ui.align_at(&cursor_rec, .Bottom_Left, {mouse_pos, {}}, .Top_Left) //TODO custom function in raylib-ui
+
+    ui.align_at(&tooltip_rec, .Bottom_Left, cursor_rec, .Top_Right)
+    
+    ui.draw_rec(tooltip_rec, ui.Color{0, 0, 0, 130})
+    ui.draw_rec_lines(tooltip_rec, 0.004, ui.Color{0, 0, 0, 255})
+    
+    text_pos := tooltip_rec.pos + padding
+    ui.draw_text(name, style, text_pos, ui.WHITE)
 }
 
 import ui "raylib-ui"
@@ -167,10 +243,17 @@ draw_storages :: proc(ustate: ^UI_State) {
     ui.draw_rec(ustate.target_storage, ui.Color{0, 0, 0, 100})
     ui.draw_rec(ustate.player_storage, ui.Color{0, 0, 0, 100})
     
-    // Draw grid padding boxes
+    // Draw grid padding boxes and items
     for i in 0..<STORAGE_SLOTS {
         ui.draw_rec_lines(ustate.target_storage_padding_boxes[i], ustate.padding.x, ui.Color{0, 0, 0, 100})
+        if item := state.target_storage[i]; item != nil {
+            draw_item(ustate.target_storage_items[i], textures[items[item.?].texture])
+        }
+        
         ui.draw_rec_lines(ustate.player_storage_padding_boxes[i], ustate.padding.x, ui.Color{0, 0, 0, 100})
+        if item := state.player_storage[i]; item != nil {
+            draw_item(ustate.player_storage_items[i], textures[items[item.?].texture])
+        }
     }
 }
 

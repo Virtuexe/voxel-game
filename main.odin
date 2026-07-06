@@ -1,14 +1,7 @@
 package voxel_game
 
-import "core:strings"
 import "core:fmt"
 import rl "vendor:raylib"
-import rlgl "vendor:raylib/rlgl"
-
-import "core:math"
-import "core:math/linalg"
-
-import ui "./raylib-ui"
 
 get_block_transform :: proc(block: Block) -> rl.Matrix {
     info := block_infos[block.type]

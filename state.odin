@@ -40,6 +40,10 @@ Player_Interaction :: struct {
     hotbar: [9]Maybe(Item_Type),
     hotbar_index: int,
     select_block_pos: Maybe([3]i32),
+    
+    cursor: Maybe(Item_Type),
+    player_storage: [STORAGE_SLOTS]Maybe(Item_Type),
+    target_storage: [STORAGE_SLOTS]Maybe(Item_Type),
 }
 
 Player_Collider :: struct {

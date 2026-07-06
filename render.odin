@@ -90,9 +90,9 @@ init_models :: proc() {
         case .Piston:
             builder_add_box(&b, {0, 0, 0}, {1, 0.75, 1}, {}, 0, info.uv_rotations[0], info.uv_rects[0])
             //arm
-            builder_add_box(&b, {0.375, -0.25+1, 0.375}, {0.625, 0.75+1, 0.625}, {}, 1, info.uv_rotations[1], info.uv_rects[1])
+            builder_add_box(&b, {0.375, 0, 0.375}, {0.625, 0.75, 0.625}, {.Bottom, .Top}, 1, info.uv_rotations[1], info.uv_rects[1])
             //head
-            builder_add_box(&b, {0, 0.75+1, 0}, {1, 1+1, 1}, {}, 2, info.uv_rotations[2], info.uv_rects[2])
+            builder_add_box(&b, {0, 0.75, 0}, {1, 1, 1}, {}, 2, info.uv_rotations[2], info.uv_rects[2])
             builder_set_center(&b, {0.5, 0.5, 0.5})
         }
         
