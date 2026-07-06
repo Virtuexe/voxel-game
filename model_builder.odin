@@ -3,10 +3,10 @@ package voxel_game
 import rl "vendor:raylib"
 
 Block_Model_Builder :: struct {
-    positions: [6][dynamic][3]f32,
-    normals:   [6][dynamic][3]f32,
-    texcoords: [6][dynamic][2]f32,
-    indices:   [6][dynamic]u16,
+    positions: [MAX_TEXTURE_GROUPS * 6][dynamic][3]f32,
+    normals:   [MAX_TEXTURE_GROUPS * 6][dynamic][3]f32,
+    texcoords: [MAX_TEXTURE_GROUPS * 6][dynamic][2]f32,
+    indices:   [MAX_TEXTURE_GROUPS * 6][dynamic]u16,
     collision_bboxes: [dynamic]rl.BoundingBox,
 }
 
@@ -15,7 +15,7 @@ builder_init :: proc() -> Block_Model_Builder {
 }
 
 builder_destroy :: proc(b: ^Block_Model_Builder) {
-    for i in 0..<6 {
+    for i in 0..<MAX_TEXTURE_GROUPS * 6 {
         delete(b.positions[i])
         delete(b.normals[i])
         delete(b.texcoords[i])
@@ -35,7 +35,7 @@ builder_get_visual_bbox :: proc(b: ^Block_Model_Builder) -> rl.BoundingBox {
     min_p := [3]f32{99999, 99999, 99999}
     max_p := [3]f32{-99999, -99999, -99999}
     
-    for i in 0..<6 {
+    for i in 0..<MAX_TEXTURE_GROUPS * 6 {
         for p in b.positions[i] {
             has_verts = true
             min_p.x = min(min_p.x, p.x)
@@ -55,48 +55,62 @@ builder_get_visual_bbox :: proc(b: ^Block_Model_Builder) -> rl.BoundingBox {
 builder_build :: proc(b: ^Block_Model_Builder) -> rl.Model {
     model: rl.Model
     model.transform = rl.Matrix(1)
-    model.meshCount = 6
-    model.materialCount = 6
-    model.meshes = cast(^rl.Mesh)rl.MemAlloc(u32(size_of(rl.Mesh) * 6))
-    model.materials = cast(^rl.Material)rl.MemAlloc(u32(size_of(rl.Material) * 6))
-    model.meshMaterial = cast(^i32)rl.MemAlloc(u32(size_of(i32) * 6))
     
-    for i in 0..<6 {
+    active_mesh_count := 0
+    for i in 0..<MAX_TEXTURE_GROUPS * 6 {
+        if len(b.positions[i]) > 0 do active_mesh_count += 1
+    }
+    
+    model.meshCount = i32(active_mesh_count)
+    model.materialCount = MAX_TEXTURE_GROUPS * 6
+    if active_mesh_count > 0 {
+        model.meshes = cast(^rl.Mesh)rl.MemAlloc(u32(size_of(rl.Mesh) * active_mesh_count))
+        model.meshMaterial = cast(^i32)rl.MemAlloc(u32(size_of(i32) * active_mesh_count))
+    }
+    model.materials = cast(^rl.Material)rl.MemAlloc(u32(size_of(rl.Material) * MAX_TEXTURE_GROUPS * 6))
+    
+    for i in 0..<MAX_TEXTURE_GROUPS * 6 {
         model.materials[i] = rl.LoadMaterialDefault()
         model.materials[i].shader = block_shader
-        model.meshMaterial[i] = i32(i)
-        
-        mesh := &model.meshes[i]
+    }
+    
+    m_idx := 0
+    for i in 0..<MAX_TEXTURE_GROUPS * 6 {
         vcount := len(b.positions[i])
+        if vcount == 0 do continue
+        
+        model.meshMaterial[m_idx] = i32(i)
+        
+        mesh := &model.meshes[m_idx]
         tcount := len(b.indices[i]) / 3
         mesh.vertexCount = i32(vcount)
         mesh.triangleCount = i32(tcount)
         
-        if vcount > 0 {
-            mesh.vertices = cast([^]f32)rl.MemAlloc(u32(vcount * 3 * size_of(f32)))
-            mesh.normals = cast([^]f32)rl.MemAlloc(u32(vcount * 3 * size_of(f32)))
-            mesh.texcoords = cast([^]f32)rl.MemAlloc(u32(vcount * 2 * size_of(f32)))
-            mesh.indices = cast([^]u16)rl.MemAlloc(u32(tcount * 3 * size_of(u16)))
-            
-            for v, j in b.positions[i] {
-                (cast([^]f32)mesh.vertices)[j * 3 + 0] = v.x
-                (cast([^]f32)mesh.vertices)[j * 3 + 1] = v.y
-                (cast([^]f32)mesh.vertices)[j * 3 + 2] = v.z
-            }
-            for n, j in b.normals[i] {
-                (cast([^]f32)mesh.normals)[j * 3 + 0] = n.x
-                (cast([^]f32)mesh.normals)[j * 3 + 1] = n.y
-                (cast([^]f32)mesh.normals)[j * 3 + 2] = n.z
-            }
-            for t, j in b.texcoords[i] {
-                (cast([^]f32)mesh.texcoords)[j * 2 + 0] = t.x
-                (cast([^]f32)mesh.texcoords)[j * 2 + 1] = t.y
-            }
-            for idx, j in b.indices[i] {
-                (cast([^]u16)mesh.indices)[j] = idx
-            }
+        mesh.vertices = cast([^]f32)rl.MemAlloc(u32(vcount * 3 * size_of(f32)))
+        mesh.normals = cast([^]f32)rl.MemAlloc(u32(vcount * 3 * size_of(f32)))
+        mesh.texcoords = cast([^]f32)rl.MemAlloc(u32(vcount * 2 * size_of(f32)))
+        mesh.indices = cast([^]u16)rl.MemAlloc(u32(tcount * 3 * size_of(u16)))
+        
+        for v, j in b.positions[i] {
+            (cast([^]f32)mesh.vertices)[j * 3 + 0] = v.x
+            (cast([^]f32)mesh.vertices)[j * 3 + 1] = v.y
+            (cast([^]f32)mesh.vertices)[j * 3 + 2] = v.z
         }
+        for n, j in b.normals[i] {
+            (cast([^]f32)mesh.normals)[j * 3 + 0] = n.x
+            (cast([^]f32)mesh.normals)[j * 3 + 1] = n.y
+            (cast([^]f32)mesh.normals)[j * 3 + 2] = n.z
+        }
+        for t, j in b.texcoords[i] {
+            (cast([^]f32)mesh.texcoords)[j * 2 + 0] = t.x
+            (cast([^]f32)mesh.texcoords)[j * 2 + 1] = t.y
+        }
+        for idx, j in b.indices[i] {
+            (cast([^]u16)mesh.indices)[j] = idx
+        }
+        
         rl.UploadMesh(mesh, false)
+        m_idx += 1
     }
     
     return model
@@ -104,7 +118,7 @@ builder_build :: proc(b: ^Block_Model_Builder) -> rl.Model {
 
 // Adds a single rectangular quad for a specific face.
 // `min_p` and `max_p` should describe a 2D bounds (i.e. one dimension is the same in both).
-builder_add_quad :: proc(b: ^Block_Model_Builder, face: Block_Face, min_p, max_p: [3]f32) {
+builder_add_quad :: proc(b: ^Block_Model_Builder, face: Block_Face, min_p, max_p: [3]f32, group: int = 0) {
     p: [4][3]f32
     uv: [4][2]f32
     norm: [3]f32
@@ -159,7 +173,7 @@ builder_add_quad :: proc(b: ^Block_Model_Builder, face: Block_Face, min_p, max_p
         for i in 0..<4 do uv[i] = {p[i].z, 1.0 - p[i].y}
     }
     
-    fi := int(face)
+    fi := group * 6 + int(face)
     base := u16(len(b.positions[fi]))
     for i in 0..<4 {
         append(&b.positions[fi], p[i])
@@ -172,12 +186,12 @@ builder_add_quad :: proc(b: ^Block_Model_Builder, face: Block_Face, min_p, max_p
 }
 
 // Automatically builds a box adding 6 outer quads (unless faces are excluded)
-builder_add_box :: proc(b: ^Block_Model_Builder, min_p, max_p: [3]f32, visible_faces: bit_set[Block_Face] = {.Top, .Bottom, .North, .South, .East, .West}) {
-    if .Top in visible_faces    do builder_add_quad(b, .Top,    {min_p.x, max_p.y, min_p.z}, {max_p.x, max_p.y, max_p.z})
-    if .Bottom in visible_faces do builder_add_quad(b, .Bottom, {min_p.x, min_p.y, min_p.z}, {max_p.x, min_p.y, max_p.z})
-    if .North in visible_faces  do builder_add_quad(b, .North,  {min_p.x, min_p.y, min_p.z}, {max_p.x, max_p.y, min_p.z})
-    if .South in visible_faces  do builder_add_quad(b, .South,  {min_p.x, min_p.y, max_p.z}, {max_p.x, max_p.y, max_p.z})
-    if .East in visible_faces   do builder_add_quad(b, .East,   {max_p.x, min_p.y, min_p.z}, {max_p.x, max_p.y, max_p.z})
-    if .West in visible_faces   do builder_add_quad(b, .West,   {min_p.x, min_p.y, min_p.z}, {min_p.x, max_p.y, max_p.z})
+builder_add_box :: proc(b: ^Block_Model_Builder, min_p, max_p: [3]f32, excluded_faces: bit_set[Block_Face] = {}, group: int = 0) {
+    if .Top not_in excluded_faces    do builder_add_quad(b, .Top,    {min_p.x, max_p.y, min_p.z}, {max_p.x, max_p.y, max_p.z}, group)
+    if .Bottom not_in excluded_faces do builder_add_quad(b, .Bottom, {min_p.x, min_p.y, min_p.z}, {max_p.x, min_p.y, max_p.z}, group)
+    if .North not_in excluded_faces  do builder_add_quad(b, .North,  {min_p.x, min_p.y, min_p.z}, {max_p.x, max_p.y, min_p.z}, group)
+    if .South not_in excluded_faces  do builder_add_quad(b, .South,  {min_p.x, min_p.y, max_p.z}, {max_p.x, max_p.y, max_p.z}, group)
+    if .East not_in excluded_faces   do builder_add_quad(b, .East,   {max_p.x, min_p.y, min_p.z}, {max_p.x, max_p.y, max_p.z}, group)
+    if .West not_in excluded_faces   do builder_add_quad(b, .West,   {min_p.x, min_p.y, min_p.z}, {min_p.x, max_p.y, max_p.z}, group)
     builder_add_collision_box(b, min_p, max_p)
 }

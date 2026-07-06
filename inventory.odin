@@ -22,7 +22,7 @@ init_inventory :: proc() {
             if block == .Redstone {
                 items[type].texture = get_redstone_texture(false, {}).texture
             } else {
-                tex_type := block_infos[block].textures[.Top]
+                tex_type := block_infos[block].textures[0][.Top]
                 items[type].texture = block_textures[tex_type]
             }
         }

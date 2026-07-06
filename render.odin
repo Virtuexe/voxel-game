@@ -108,38 +108,14 @@ init_stairs_model :: proc() {
     b := builder_init()
     defer builder_destroy(&b)
 
-    // ------- Bottom face (y=0, full 1×1) normal -Y -------
-    builder_add_quad(&b, .Bottom, {0, 0, 0}, {1, 0, 1})
+    // Base slab (bottom half)
+    builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {.Top})
     
-    // ------- Back face (z=0, full 1×1) normal -Z -------
-    builder_add_quad(&b, .North, {0, 0, 0}, {1, 1, 0})
-    
-    // ------- Front lower (z=1, y=0..0.5, 1×0.5) normal +Z -------
-    builder_add_quad(&b, .South, {0, 0, 1}, {1, 0.5, 1})
-    
-    // ------- Step riser (z=0.5, y=0.5..1, 1×0.5) normal +Z -------
-    builder_add_quad(&b, .South, {0, 0.5, 0.5}, {1, 1, 0.5})
-    
-    // ------- Tread top (y=0.5, z=0.5..1, 1×0.5 depth) normal +Y -------
+    // Top face of the base slab (tread)
     builder_add_quad(&b, .Top, {0, 0.5, 0.5}, {1, 0.5, 1})
     
-    // ------- Cap top (y=1, z=0..0.5, 1×0.5 depth) normal +Y -------
-    builder_add_quad(&b, .Top, {0, 1, 0}, {1, 1, 0.5})
-    
-    // ------- Left lower (x=0, y=0..0.5, z full, 1×0.5) normal -X -------
-    builder_add_quad(&b, .West, {0, 0, 0}, {0, 0.5, 1})
-    
-    // ------- Left upper (x=0, y=0.5..1, z=0..0.5, 0.5×0.5) normal -X -------
-    builder_add_quad(&b, .West, {0, 0.5, 0}, {0, 1, 0.5})
-    
-    // ------- Right lower (x=1, y=0..0.5, z full, 1×0.5) normal +X -------
-    builder_add_quad(&b, .East, {1, 0, 0}, {1, 0.5, 1})
-    
-    // ------- Right upper (x=1, y=0.5..1, z=0..0.5, 0.5×0.5) normal +X -------
-    builder_add_quad(&b, .East, {1, 0.5, 0}, {1, 1, 0.5})
-    
-    builder_add_collision_box(&b, {0, 0, 0}, {1, 0.5, 1})
-    builder_add_collision_box(&b, {0, 0.5, 0}, {1, 1, 0.5})
+    // Top step (cap)
+    builder_add_box(&b, {0, 0.5, 0}, {1, 1, 0.5}, {.Bottom})
     
     m := builder_build(&b)
     block_models[.Stairs] = {
@@ -153,12 +129,12 @@ init_piston_model :: proc() {
     b := builder_init()
     defer builder_destroy(&b)
     
-    builder_add_box(&b, {0, 0, 0}, {1, 0.75, 1})
+    builder_add_box(&b, {0, 0, 0}, {1, 0.75, 1}, group=0)
     //arm
-    builder_add_box(&b, {0, 0.75+1, 0}, {1, 1+1, 1})
-    builder_add_box(&b, {0.375, -0.25+1, 0.375}, {0.625, 0.75+1, 0.625})
+    builder_add_box(&b, {0.375, -0.25+1, 0.375}, {0.625, 0.75+1, 0.625}, group=1)
+    //head
+    builder_add_box(&b, {0, 0.75+1, 0}, {1, 1+1, 1},group=2)
 
-    
     m := builder_build(&b)
     block_models[.Piston] = {
         model = m,
@@ -242,13 +218,16 @@ draw_world_chunks :: proc() {
                 if block.type == .Redstone {
                     redstone := block.data.redstone
                     redstone_tex := get_redstone_texture(redstone.on, redstone.connections).texture
-                    for i in 0..<6 {
+                    for i in 0..<MAX_TEXTURE_GROUPS * 6 {
                         rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, redstone_tex)
                     }
                 } else {
-                    for face in Block_Face {
-                        t := block_textures[info.textures[face]]
-                        rl.SetMaterialTexture(&model_to_draw.materials[int(face)], .ALBEDO, t)
+                    for i in 0..<MAX_TEXTURE_GROUPS * 6 {
+                        group := i / 6
+                        face := Block_Face(i % 6)
+                        t := block_textures[info.textures[group][face]]
+                        // We only have active meshes mapped properly if their material matches
+                        rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, t)
                     }
                 }
                 

@@ -1,6 +1,5 @@
 package voxel_game
 import rl "vendor:raylib"
-import rlgl "vendor:raylib/rlgl"
 import "core:fmt"
 
 //RENDER
@@ -20,7 +19,7 @@ Block_Type :: enum {
 Block_Info :: struct {
     flags: bit_set[Block_Flag],
     item: Maybe(Item_Type),
-    textures: [Block_Face]Block_Texture_Type,
+    textures: [MAX_TEXTURE_GROUPS][Block_Face]Block_Texture_Type,
     model: Block_Model,
 }
 Block_Flag :: enum {
@@ -30,6 +29,7 @@ Block_Flag :: enum {
     HAS_CARDINAL,
     HAS_BLOCK_FACE,
 }
+MAX_TEXTURE_GROUPS :: 4
 Block_Model :: enum {Cube, Slab, Decal, Stairs, Piston}
 block_infos := [Block_Type]Block_Info {
     .Air = {
@@ -87,25 +87,27 @@ fill_textures :: proc(tex: Block_Texture_Type) -> [Block_Face]Block_Texture_Type
 }
 
 init_block_infos :: proc() {
-    block_infos[.Dirt].textures = fill_textures(.Dirt)
+    block_infos[.Dirt].textures[0] = fill_textures(.Dirt)
     
-    block_infos[.Stone].textures = fill_textures(.Stone)
+    block_infos[.Stone].textures[0] = fill_textures(.Stone)
     
-    block_infos[.Cobblestone].textures = fill_textures(.Cobblestone)
+    block_infos[.Cobblestone].textures[0] = fill_textures(.Cobblestone)
     
-    block_infos[.Glass].textures = fill_textures(.Glass)
+    block_infos[.Glass].textures[0] = fill_textures(.Glass)
     
-    block_infos[.Planks].textures = fill_textures(.Planks)
+    block_infos[.Planks].textures[0] = fill_textures(.Planks)
     
-    block_infos[.Slab].textures = fill_textures(.Slab_Side)
-    block_infos[.Slab].textures[.Top] = .Slab_Top
-    block_infos[.Slab].textures[.Bottom] = .Slab_Top
+    block_infos[.Slab].textures[0] = fill_textures(.Slab_Side)
+    block_infos[.Slab].textures[0][.Top] = .Slab_Top
+    block_infos[.Slab].textures[0][.Bottom] = .Slab_Top
     
-    block_infos[.Stairs].textures = fill_textures(.Planks)
+    block_infos[.Stairs].textures[0] = fill_textures(.Planks)
     
-    block_infos[.Piston].textures = fill_textures(.Piston_Side)
-    block_infos[.Piston].textures[.Top] = .Piston_Top
-    block_infos[.Piston].textures[.Bottom] = .Piston_Bottom
+    block_infos[.Piston].textures[0] = fill_textures(.Piston_Side)
+    block_infos[.Piston].textures[0][.Top] = .Piston_Inner
+    block_infos[.Piston].textures[0][.Bottom] = .Piston_Bottom
+    block_infos[.Piston].textures[1] = fill_textures(.Planks)
+    block_infos[.Piston].textures[2] = fill_textures(.Piston_Top)
 }
 
 block_init :: proc() {
