@@ -118,7 +118,7 @@ builder_build :: proc(b: ^Block_Model_Builder) -> rl.Model {
 
 // Adds a single rectangular quad for a specific face.
 // `min_p` and `max_p` should describe a 2D bounds (i.e. one dimension is the same in both).
-builder_add_quad :: proc(b: ^Block_Model_Builder, face: Block_Face, min_p, max_p: [3]f32, group: int = 0) {
+builder_add_quad :: proc(b: ^Block_Model_Builder, face: Block_Face, min_p, max_p: [3]f32, group: int = 0, uv_rot: UV_Rotation = .Deg_0, uv_rect: UV_Rect = {}) {
     p: [4][3]f32
     uv: [4][2]f32
     norm: [3]f32
@@ -175,10 +175,18 @@ builder_add_quad :: proc(b: ^Block_Model_Builder, face: Block_Face, min_p, max_p
     
     fi := group * 6 + int(face)
     base := u16(len(b.positions[fi]))
+    
+    if uv_rect.size.x != 0 || uv_rect.size.y != 0 {
+        uv[0] = {uv_rect.pos.x, uv_rect.pos.y}
+        uv[1] = {uv_rect.pos.x, uv_rect.pos.y + uv_rect.size.y}
+        uv[2] = {uv_rect.pos.x + uv_rect.size.x, uv_rect.pos.y + uv_rect.size.y}
+        uv[3] = {uv_rect.pos.x + uv_rect.size.x, uv_rect.pos.y}
+    }
+    
     for i in 0..<4 {
         append(&b.positions[fi], p[i])
         append(&b.normals[fi], norm)
-        append(&b.texcoords[fi], uv[i])
+        append(&b.texcoords[fi], uv[(i + int(uv_rot)) % 4])
     }
     // Quad triangles: 0,1,2 and 0,2,3
     append(&b.indices[fi], base, base+1, base+2)
@@ -186,12 +194,12 @@ builder_add_quad :: proc(b: ^Block_Model_Builder, face: Block_Face, min_p, max_p
 }
 
 // Automatically builds a box adding 6 outer quads (unless faces are excluded)
-builder_add_box :: proc(b: ^Block_Model_Builder, min_p, max_p: [3]f32, excluded_faces: bit_set[Block_Face] = {}, group: int = 0) {
-    if .Top not_in excluded_faces    do builder_add_quad(b, .Top,    {min_p.x, max_p.y, min_p.z}, {max_p.x, max_p.y, max_p.z}, group)
-    if .Bottom not_in excluded_faces do builder_add_quad(b, .Bottom, {min_p.x, min_p.y, min_p.z}, {max_p.x, min_p.y, max_p.z}, group)
-    if .North not_in excluded_faces  do builder_add_quad(b, .North,  {min_p.x, min_p.y, min_p.z}, {max_p.x, max_p.y, min_p.z}, group)
-    if .South not_in excluded_faces  do builder_add_quad(b, .South,  {min_p.x, min_p.y, max_p.z}, {max_p.x, max_p.y, max_p.z}, group)
-    if .East not_in excluded_faces   do builder_add_quad(b, .East,   {max_p.x, min_p.y, min_p.z}, {max_p.x, max_p.y, max_p.z}, group)
-    if .West not_in excluded_faces   do builder_add_quad(b, .West,   {min_p.x, min_p.y, min_p.z}, {min_p.x, max_p.y, max_p.z}, group)
+builder_add_box :: proc(b: ^Block_Model_Builder, min_p, max_p: [3]f32, excluded_faces: bit_set[Block_Face] = {}, group: int = 0, uv_rotations: [Block_Face]UV_Rotation = {}, uv_rects: [Block_Face]UV_Rect = {}) {
+    if .Top not_in excluded_faces    do builder_add_quad(b, .Top,    {min_p.x, max_p.y, min_p.z}, {max_p.x, max_p.y, max_p.z}, group, uv_rotations[.Top], uv_rects[.Top])
+    if .Bottom not_in excluded_faces do builder_add_quad(b, .Bottom, {min_p.x, min_p.y, min_p.z}, {max_p.x, min_p.y, max_p.z}, group, uv_rotations[.Bottom], uv_rects[.Bottom])
+    if .North not_in excluded_faces  do builder_add_quad(b, .North,  {min_p.x, min_p.y, min_p.z}, {max_p.x, max_p.y, min_p.z}, group, uv_rotations[.North], uv_rects[.North])
+    if .South not_in excluded_faces  do builder_add_quad(b, .South,  {min_p.x, min_p.y, max_p.z}, {max_p.x, max_p.y, max_p.z}, group, uv_rotations[.South], uv_rects[.South])
+    if .East not_in excluded_faces   do builder_add_quad(b, .East,   {max_p.x, min_p.y, min_p.z}, {max_p.x, max_p.y, max_p.z}, group, uv_rotations[.East], uv_rects[.East])
+    if .West not_in excluded_faces   do builder_add_quad(b, .West,   {min_p.x, min_p.y, min_p.z}, {min_p.x, max_p.y, max_p.z}, group, uv_rotations[.West], uv_rects[.West])
     builder_add_collision_box(b, min_p, max_p)
 }

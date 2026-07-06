@@ -62,84 +62,45 @@ init_shaders :: proc() {
     block_shader = rl.LoadShaderFromMemory(cstring(raw_data(vs)), cstring(raw_data(fs)))
 }
 
-init_block_model :: proc() {
-    b := builder_init()
-    defer builder_destroy(&b)
-    builder_add_box(&b, {0, 0, 0}, {1, 1, 1})
-    m := builder_build(&b)
-    block_models[.Cube] = {
-        model = m,
-        visual_bbox = builder_get_visual_bbox(&b),
-        collision_bboxes = slice.clone(b.collision_bboxes[:]),
-    }
-}
-
-init_slab_model :: proc() {
-    b := builder_init()
-    defer builder_destroy(&b)
-    builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1})
-    m := builder_build(&b)
-    block_models[.Slab] = {
-        model = m,
-        visual_bbox = builder_get_visual_bbox(&b),
-        collision_bboxes = slice.clone(b.collision_bboxes[:]),
-    }
-}
-
-init_decal_model :: proc() {
-    b := builder_init()
-    defer builder_destroy(&b)
-    // Decal sits slightly above y=0 to prevent z-fighting
-    builder_add_quad(&b, .Top, {0, 0.001, 0}, {1, 0.001, 1})
-    builder_add_collision_box(&b, {0, 0, 0}, {1, 0.01, 1})
-    m := builder_build(&b)
-    block_models[.Decal] = {
-        model = m,
-        visual_bbox = builder_get_visual_bbox(&b),
-        collision_bboxes = slice.clone(b.collision_bboxes[:]),
-    }
-    
+init_models :: proc() {
     img := rl.GenImageColor(1, 1, rl.WHITE)
     white_texture = rl.LoadTextureFromImage(img)
     rl.UnloadImage(img)
-}
 
-init_stairs_model :: proc() {
-    b := builder_init()
-    defer builder_destroy(&b)
-
-    // Base slab (bottom half)
-    builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {.Top})
-    
-    // Top face of the base slab (tread)
-    builder_add_quad(&b, .Top, {0, 0.5, 0.5}, {1, 0.5, 1})
-    
-    // Top step (cap)
-    builder_add_box(&b, {0, 0.5, 0}, {1, 1, 0.5}, {.Bottom})
-    
-    m := builder_build(&b)
-    block_models[.Stairs] = {
-        model = m,
-        visual_bbox = builder_get_visual_bbox(&b),
-        collision_bboxes = slice.clone(b.collision_bboxes[:]),
-    }
-}
-
-init_piston_model :: proc() {
-    b := builder_init()
-    defer builder_destroy(&b)
-    
-    builder_add_box(&b, {0, 0, 0}, {1, 0.75, 1}, group=0)
-    //arm
-    builder_add_box(&b, {0.375, -0.25+1, 0.375}, {0.625, 0.75+1, 0.625}, group=1)
-    //head
-    builder_add_box(&b, {0, 0.75+1, 0}, {1, 1+1, 1},group=2)
-
-    m := builder_build(&b)
-    block_models[.Piston] = {
-        model = m,
-        visual_bbox = builder_get_visual_bbox(&b),
-        collision_bboxes = slice.clone(b.collision_bboxes[:]),
+    for type in Block_Type {
+        if type == .Air do continue
+        
+        info := block_infos[type]
+        b := builder_init()
+        
+        switch info.model {
+        case .Cube:
+            builder_add_box(&b, {0, 0, 0}, {1, 1, 1}, {}, 0, info.uv_rotations[0], info.uv_rects[0])
+        case .Slab:
+            builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {}, 0, info.uv_rotations[0], info.uv_rects[0])
+        case .Decal:
+            builder_add_quad(&b, .Top, {0, 0.001, 0}, {1, 0.001, 1}, 0, info.uv_rotations[0][.Top], info.uv_rects[0][.Top])
+            builder_add_collision_box(&b, {0, 0, 0}, {1, 0.01, 1})
+        case .Stairs:
+            builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {.Top}, 0, info.uv_rotations[0], info.uv_rects[0])
+            builder_add_quad(&b, .Top, {0, 0.5, 0.5}, {1, 0.5, 1}, 0, info.uv_rotations[0][.Top], info.uv_rects[0][.Top])
+            builder_add_box(&b, {0, 0.5, 0}, {1, 1, 0.5}, {.Bottom}, 0, info.uv_rotations[0], info.uv_rects[0])
+        case .Piston:
+            builder_add_box(&b, {0, 0, 0}, {1, 0.75, 1}, {}, 0, info.uv_rotations[0], info.uv_rects[0])
+            //arm
+            builder_add_box(&b, {0.375, -0.25+1, 0.375}, {0.625, 0.75+1, 0.625}, {}, 1, info.uv_rotations[1], info.uv_rects[1])
+            //head
+            builder_add_box(&b, {0, 0.75+1, 0}, {1, 1+1, 1}, {}, 2, info.uv_rotations[2], info.uv_rects[2])
+        }
+        
+        m := builder_build(&b)
+        block_models[type] = {
+            model = m,
+            visual_bbox = builder_get_visual_bbox(&b),
+            collision_bboxes = slice.clone(b.collision_bboxes[:]),
+        }
+        
+        builder_destroy(&b)
     }
 }
 

@@ -8,7 +8,7 @@ Block_Model_Data :: struct {
     visual_bbox: rl.BoundingBox,
     collision_bboxes: []rl.BoundingBox,
 }
-block_models: [Block_Model]Block_Model_Data
+block_models: [Block_Type]Block_Model_Data
 redstone_render_texture: [(1<<len(Cardinal))*2]rl.RenderTexture2D
 
 Block_Type :: enum {
@@ -20,7 +20,21 @@ Block_Info :: struct {
     flags: bit_set[Block_Flag],
     item: Maybe(Item_Type),
     textures: [MAX_TEXTURE_GROUPS][Block_Face]Block_Texture_Type,
+    uv_rotations: [MAX_TEXTURE_GROUPS][Block_Face]UV_Rotation,
+    uv_rects: [MAX_TEXTURE_GROUPS][Block_Face]UV_Rect,
     model: Block_Model,
+}
+
+UV_Rotation :: enum {
+    Deg_0 = 0,
+    Deg_90_CW = 1,
+    Deg_180 = 2,
+    Deg_90_CCW = 3,
+}
+
+UV_Rect :: struct {
+    pos: [2]f32,
+    size: [2]f32,
 }
 Block_Flag :: enum {
     TEXTURE_TRANSPARENT,
@@ -86,6 +100,20 @@ fill_textures :: proc(tex: Block_Texture_Type) -> [Block_Face]Block_Texture_Type
     return {.Top = tex, .Bottom = tex, .North = tex, .South = tex, .East = tex, .West = tex}
 }
 
+fill_uv_rects :: proc(rect: UV_Rect) -> [Block_Face]UV_Rect {
+    return {.Top = rect, .Bottom = rect, .North = rect, .South = rect, .East = rect, .West = rect}
+}
+
+fill_uv_rotations :: proc(rot: UV_Rotation) -> [Block_Face]UV_Rotation {
+    return {.Top = rot, .Bottom = rot, .North = rot, .South = rot, .East = rot, .West = rot}
+}
+
+// Converts a pixel region (0-16) to normalized 0.0-1.0 UV mapping coordinates.
+// Perfect for accurately mapping subsets of textures to block geometry!
+pixel_uv :: proc(x, y, w, h: f32) -> UV_Rect {
+    return {{x / 16.0, y / 16.0}, {w / 16.0, h / 16.0}}
+}
+
 init_block_infos :: proc() {
     block_infos[.Dirt].textures[0] = fill_textures(.Dirt)
     
@@ -106,28 +134,30 @@ init_block_infos :: proc() {
     block_infos[.Piston].textures[0] = fill_textures(.Piston_Side)
     block_infos[.Piston].textures[0][.Top] = .Piston_Inner
     block_infos[.Piston].textures[0][.Bottom] = .Piston_Bottom
-    block_infos[.Piston].textures[1] = fill_textures(.Planks)
-    block_infos[.Piston].textures[2] = fill_textures(.Piston_Top)
+    
+    block_infos[.Piston].textures[1] = fill_textures(.Piston_Side)
+    block_infos[.Piston].uv_rects[1] = fill_uv_rects(pixel_uv(0, 0, 16, 4))
+    block_infos[.Piston].uv_rotations[1] = fill_uv_rotations(.Deg_90_CCW)
+
+    block_infos[.Piston].textures[2] = fill_textures(.Piston_Side)
+    block_infos[.Piston].textures[2][.Top] = .Piston_Top
+    block_infos[.Piston].textures[2][.Bottom] = .Piston_Top
 }
 
 block_init :: proc() {
     init_block_infos()
-    init_block_model()
-    init_slab_model()
-    init_decal_model()
-    init_stairs_model()
-    init_piston_model()
+    init_models()
 }
 //TODO unload textures
 
 // Returns the base model for a block type (no transform applied)
 get_base_model :: proc(block: Block) -> rl.Model {
-    return block_models[block_infos[block.type].model].model
+    return block_models[block.type].model
 }
 
 // Returns the base bounding box for a block type (unrotated, local space)
 get_base_bbox :: proc(block: Block) -> rl.BoundingBox {
-    return block_models[block_infos[block.type].model].visual_bbox
+    return block_models[block.type].visual_bbox
 }
 
 // Returns the model with the correct rotation transform applied.
@@ -199,7 +229,7 @@ rotate_bbox :: proc(base: rl.BoundingBox, rot: rl.Matrix) -> rl.BoundingBox {
 // Caller must pass a buffer of at least max_collisions to hold results.
 // Returns the slice of filled bboxes.
 get_block_bboxes :: proc(block: Block, buf: ^[8]rl.BoundingBox) -> []rl.BoundingBox {
-    model_data := block_models[block_infos[block.type].model]
+    model_data := block_models[block.type]
     rot := get_block_transform(block)
     for bbox, i in model_data.collision_bboxes {
         buf[i] = rotate_bbox(bbox, rot)
