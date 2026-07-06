@@ -1,13 +1,16 @@
 package voxel_game
 import rl "vendor:raylib"
 
-Block_Texture_Type :: enum {
+Texture_Type :: enum {
+    //Blocks
     Dirt, Stone, Cobblestone, Glass, Planks,
     Slab_Side, Slab_Top,
-    Piston_Side, Piston_Top, Piston_Bottom, Piston_Inner
+    Piston_Side, Piston_Top, Piston_Bottom, Piston_Inner,
+    //Items
+    Wire, Copper_Wire,
 }
 
-block_textures_paths := [Block_Texture_Type]cstring {
+texture_paths := [Texture_Type]cstring {
     .Dirt = "assets/dirt.png",
     .Stone = "assets/stone.png",
     .Cobblestone = "assets/cobblestone.png",
@@ -19,17 +22,15 @@ block_textures_paths := [Block_Texture_Type]cstring {
     .Piston_Top = "assets/piston_top.png",
     .Piston_Bottom = "assets/piston_bottom.png",
     .Piston_Inner = "assets/piston_inner.png",
+    .Wire = "assets/wire.png",
+    .Copper_Wire = "assets/copper_wire.png",
 }
 
-block_textures: [Block_Texture_Type]rl.Texture2D
-
-init_block_textures :: proc() {
-    for type in Block_Texture_Type {
-        path := block_textures_paths[type]
-        block_textures[type] = rl.LoadTexture(path)
-    }
-}
+textures: [Texture_Type]rl.Texture2D
 
 init_textures :: proc() {
-    init_block_textures()
+    for type in Texture_Type {
+        path := texture_paths[type]
+        textures[type] = rl.LoadTexture(path)
+    }
 }

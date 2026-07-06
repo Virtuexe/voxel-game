@@ -6,9 +6,9 @@ init_hotbar :: proc() {
     state.hotbar = {
         .Dirt,
         .Stone,
+        .Cobblestone,
         .Glass,
         .Planks,
-        .Redstone,
         .Slab,
         .Stairs,
         .Piston,
@@ -19,18 +19,6 @@ init_hotbar :: proc() {
 
 init_inventory :: proc() {
     init_hotbar()
-    for type in Item_Type {
-        if block, ok := items[type].block.?; ok {
-            if block == .Redstone {
-                items[type].texture = get_redstone_texture(false, {}).texture
-            } else {
-                tex_type := block_infos[block].textures[0][.Top]
-                items[type].texture = block_textures[tex_type]
-            }
-        } else if type == .Wire {
-            items[type].texture = rl.LoadTexture("assets/wire.png")
-        }
-    }
 }
 
 update_inventory :: proc(ustate: ^UI_State) {
@@ -74,7 +62,7 @@ draw_hotbar :: proc(ustate: ^UI_State) {
         
         item := state.hotbar[i]
         if item != nil {
-            draw_item(rec, items[item.?].texture)
+            draw_item(rec, textures[items[item.?].texture])
         }
     }
 }

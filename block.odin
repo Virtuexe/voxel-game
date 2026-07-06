@@ -20,7 +20,7 @@ Block_Type :: enum {
 Block_Info :: struct {
     flags: bit_set[Block_Flag],
     item: Maybe(Item_Type),
-    textures: [MAX_TEXTURE_GROUPS][Block_Face]Block_Texture_Type,
+    textures: [MAX_TEXTURE_GROUPS][Block_Face]Texture_Type,
     uv_rotations: [MAX_TEXTURE_GROUPS][Block_Face]UV_Rotation,
     uv_rects: [MAX_TEXTURE_GROUPS][Block_Face]UV_Rect,
     model: Block_Model,
@@ -97,7 +97,7 @@ block_infos := [Block_Type]Block_Info {
     }
 }
 
-fill_textures :: proc(tex: Block_Texture_Type) -> [Block_Face]Block_Texture_Type {
+fill_textures :: proc(tex: Texture_Type) -> [Block_Face]Texture_Type {
     return {.Top = tex, .Bottom = tex, .North = tex, .South = tex, .East = tex, .West = tex}
 }
 

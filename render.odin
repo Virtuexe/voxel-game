@@ -190,7 +190,7 @@ draw_world_chunks :: proc() {
                     for i in 0..<MAX_TEXTURE_GROUPS * 6 {
                         group := i / 6
                         face := Block_Face(i % 6)
-                        t := block_textures[info.textures[group][face]]
+                        t := textures[info.textures[group][face]]
                         // We only have active meshes mapped properly if their material matches
                         rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, t)
                     }
