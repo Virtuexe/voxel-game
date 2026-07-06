@@ -15,14 +15,14 @@ UI_State :: struct {
     padding_boxes: [9]ui.Rec,
 }
 
-update_ui :: proc(state: ^State, ustate: ^UI_State) {
+update_ui :: proc(ustate: ^UI_State) {
     ui.camera_set_viewport(&state.ui_cam)
     ustate.view = {{}, ui.get_view_size(state.ui_cam)}
-    update_inventory(state, ustate)
+    update_inventory(ustate)
 }
-draw_ui :: proc(state: ^State, ustate: ^UI_State) {
+draw_ui :: proc(ustate: ^UI_State) {
     ui.begin_draw(&state.ui_cam)
-    draw_inventory(state, ustate)
+    draw_inventory(ustate)
 
     if !state.show_debug {
         crosshair := ui.Rec{{}, ui.vmin(ustate.view.size)/15}

@@ -1,6 +1,6 @@
 package voxel_game
 
-init_hotbar :: proc(state: ^State) {
+init_hotbar :: proc() {
     state.hotbar = {
         {.Dirt, {}},
         {.Stone, {}},
@@ -15,8 +15,8 @@ init_hotbar :: proc(state: ^State) {
     state.held_block = state.hotbar[0]
 }
 
-init_inventory :: proc(state: ^State) {
-    init_hotbar(state)
+init_inventory :: proc() {
+    init_hotbar()
     for type in Item_Type {
         if block, ok := items[type].block.?; ok {
             if block == .Redstone {
@@ -29,12 +29,12 @@ init_inventory :: proc(state: ^State) {
     }
 }
 
-update_inventory :: proc(state: ^State, ustate: ^UI_State) {
+update_inventory :: proc(ustate: ^UI_State) {
     ustate.item_size = ui.Vec{0.08, 0.08}
     update_hotbar(ustate)
 }
-draw_inventory :: proc(state: ^State, ustate: ^UI_State) {
-    draw_hotbar(state, ustate)
+draw_inventory :: proc(ustate: ^UI_State) {
+    draw_hotbar(ustate)
 }
 
 import ui "raylib-ui"
@@ -59,7 +59,7 @@ update_hotbar :: proc(ustate: ^UI_State) {
         ui.align(item, padding_box, .Center)
     }
 }
-draw_hotbar :: proc(state: ^State, ustate: ^UI_State) {
+draw_hotbar :: proc(ustate: ^UI_State) {
     ui.draw_rec(ustate.hotbar, ui.Color{0, 0, 0, 100})
     for i in 0..<9 {
         rec := ustate.items[i]

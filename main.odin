@@ -65,32 +65,7 @@ crosshair_texture: rl.Texture2D
 // State structs moved to state.odin
 
 main :: proc() {
-    state := State {
-        cam = {
-            position = {0, 5, 5},
-            up       = {0, 1, 0},
-            fovy     = 90,
-            projection = .PERSPECTIVE,
-        },
-        ui_cam = {zoom=1},
-        movement = {
-            move_speed = 4.3,
-            gravity = 32,
-            jump_strength = 8.4,
-            yaw = 90,
-        },
-        input = {
-            mouse_sensitivity = 0.1,
-            use_key_input = true,
-            use_mouse_input = true,
-        },
-        interaction = {
-            looking_at_block = false,
-        },
-        collider = {
-            collider_size = Vec3{0.5, 2, 0.5},
-        },
-    }
+
     ustate := UI_State{}
 
     state.collider_offset = state.collider_size/2 + {0, state.collider_size.y/4, 0}
@@ -102,12 +77,12 @@ main :: proc() {
     rl.SetTargetFPS(120)
     rl.SetExitKey(rl.KeyboardKey.KEY_NULL)
 
-    init(&state, &ustate)
+    init(&ustate)
 
     for !rl.WindowShouldClose() {        
-        update(&state, &ustate)
+        update(&ustate)
         rl.BeginDrawing()
-        draw(&state, &ustate)
+        draw(&ustate)
         rl.EndDrawing()
     }
 
@@ -124,7 +99,7 @@ main :: proc() {
     rl.CloseWindow()
 }
 
-init :: proc(state: ^State, ustate: ^UI_State) {
+init :: proc(ustate: ^UI_State) {
     calc_window()
 
     arrow_texture = rl.LoadTexture("assets/arrow.png")
@@ -134,40 +109,40 @@ init :: proc(state: ^State, ustate: ^UI_State) {
     block_init()
     gen_redstone_textures()
 
-    world_init(state)
+    world_init()
 
-    init_inventory(state)
+    init_inventory()
 
     state.apply_gravity = true
     state.is_flying = false
     state.can_jump = true
-    init_code(state)
+    init_code()
 }
 
-update :: proc(state: ^State, ustate: ^UI_State) {
+update :: proc(ustate: ^UI_State) {
     calc_window()
     delta := get_delta()
 
-    update_player(state, delta)
+    update_player(delta)
 
-    update_ui(state, ustate)
-    update_code(state)
+    update_ui(ustate)
+    update_code()
 }
 
-draw :: proc(state: ^State, ustate: ^UI_State) {
+draw :: proc(ustate: ^UI_State) {
     rl.ClearBackground(rl.BLACK)
     rl.BeginMode3D(state.cam)
     rl.BeginBlendMode(.ALPHA)
 
-    draw_world_chunks(state)
-    draw_player_target_box(state)
+    draw_world_chunks()
+    draw_player_target_box()
     
     rl.EndMode3D()
 
     //UI
-    draw_ui(state, ustate)
+    draw_ui(ustate)
 
-    draw_code(state)
+    draw_code()
 }
 
 get_delta :: proc() -> f32 {

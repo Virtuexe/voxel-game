@@ -224,7 +224,7 @@ get_redstone_texture :: proc(on: bool, connections: [Cardinal]bool) -> rl.Render
     return redstone_render_texture[state]
 }
 
-draw_world_chunks :: proc(state: ^State) {
+draw_world_chunks :: proc() {
     for do_transparent in ([]bool{false, true}) {
         for c_pos, chunk in state.world.chunks {
             for block_key, i in chunk.block_keys {

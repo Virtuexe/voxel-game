@@ -5,7 +5,7 @@ import "core:math/linalg"
 import rl "vendor:raylib"
 import rlgl "vendor:raylib/rlgl"
 
-update_player :: proc(state: ^State, delta: f32) {
+update_player :: proc(delta: f32) {
     //ESC+
     state.mouse_lock = true
     state.use_key_input = true
@@ -60,7 +60,7 @@ update_player :: proc(state: ^State, delta: f32) {
         state.collider_size.y = 2.0
     }
     wasd: Vec3
-    if state.use_key_input do wasd = get_wasd_input(state, forward_move, right_move, up)
+    if state.use_key_input do wasd = get_wasd_input(forward_move, right_move, up)
     movement := wasd * delta * move_speed
     if state.apply_gravity {
         state.velocity.y -= state.gravity * delta
@@ -77,7 +77,7 @@ update_player :: proc(state: ^State, delta: f32) {
         if state.is_shifting && was_grounded && !state.is_flying && i != 1 {
             test_pos := state.cam.position
             test_pos[i] += movement[i]
-            if !is_player_supported(state, test_pos) {
+            if !is_player_supported(test_pos) {
                 movement[i] = 0
             }
         }
@@ -88,9 +88,9 @@ update_player :: proc(state: ^State, delta: f32) {
             i32(math.floor(state.cam.position.z))
         }
         it := make_player_block_iterator(center)
-        for block, global_pos in player_block_iterator_next(state, &it) {
+        for block, global_pos in player_block_iterator_next(&it) {
             block_pos := to_vec3(global_pos)
-            if !is_overlapping(state, state.cam.position, global_pos, block) do continue
+            if !is_overlapping(state.cam.position, global_pos, block) do continue
 
             feet_y := state.cam.position.y - state.collider_offset.y
             bbox_buf: [8]rl.BoundingBox
@@ -109,7 +109,7 @@ update_player :: proc(state: ^State, delta: f32) {
                 if i != 1 && was_grounded && b_max.y - feet_y <= 0.6 && b_max.y > feet_y {
                     test_pos := state.cam.position
                     test_pos.y = b_max.y + state.collider_offset.y
-                    if !is_player_colliding(state, test_pos) {
+                    if !is_player_colliding(test_pos) {
                         state.cam.position.y = test_pos.y
                         continue
                     }
@@ -134,7 +134,7 @@ update_player :: proc(state: ^State, delta: f32) {
     state.cam.target = state.cam.position + forward
 
     //RAYCAST
-    raycast(state)
+    raycast()
 
     //INTERACTION
     if state.use_key_input {
@@ -163,15 +163,15 @@ update_player :: proc(state: ^State, delta: f32) {
         }
 
         if rl.IsMouseButtonPressed(.LEFT) && state.looking_at_block {
-            set_target_block(state, Block{.Air, {}})
-            raycast(state)
+            set_target_block(Block{.Air, {}})
+            raycast()
         }
         if rl.IsMouseButtonPressed(.RIGHT) && state.looking_at_block {
             if state.is_shifting && state.looking_at_block {
                 if pos, ok := state.select_block_pos.([3]i32); ok {
-                    block := world_get_block(state, pos)
+                    block := world_get_block(pos)
                     block.data.arrow = Arrow{state.look_target}
-                    world_set_block(state, pos, block)
+                    world_set_block(pos, block)
                     state.select_block_pos = nil
                 }
                 else {
@@ -179,13 +179,13 @@ update_player :: proc(state: ^State, delta: f32) {
                 }
             }
             else {
-                block_place(state)
+                block_place()
             }
         }
     }
 }
 
-get_wasd_input :: proc(state: ^State, forward, right, up: Vec3) -> (wasd:Vec3) {
+get_wasd_input :: proc(forward, right, up: Vec3) -> (wasd:Vec3) {
     Key_Vec :: struct{key: rl.KeyboardKey, pos: Vec3}
     key_vec_move := []Key_Vec {
         {.W, forward},
@@ -211,28 +211,28 @@ get_wasd_input :: proc(state: ^State, forward, right, up: Vec3) -> (wasd:Vec3) {
     return
 }
 
-is_player_colliding :: proc(state: ^State, pos: Vec3) -> bool {
+is_player_colliding :: proc(pos: Vec3) -> bool {
     center := [3]i32{
         i32(math.floor(pos.x)), 
         i32(math.floor(pos.y - state.collider_offset.y)), 
         i32(math.floor(pos.z))
     }
     it := make_player_block_iterator(center)
-    for block, global_pos in player_block_iterator_next(state, &it) {
-        if is_overlapping(state, pos, global_pos, block) {
+    for block, global_pos in player_block_iterator_next(&it) {
+        if is_overlapping(pos, global_pos, block) {
             return true
         }
     }
     return false
 }
 
-is_player_supported :: proc(state: ^State, pos: Vec3) -> bool {
+is_player_supported :: proc(pos: Vec3) -> bool {
     test_pos := pos
     test_pos.y -= 0.05
-    return is_player_colliding(state, test_pos)
+    return is_player_colliding(test_pos)
 }
 
-is_overlapping :: proc(state: ^State, player: Vec3, block_pos: [3]i32, block: Block) -> bool {
+is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block) -> bool {
     if block == {.Air, {}} do return false
     info := block_infos[block.type]
     if .NO_COLLISION in info.flags do return false
@@ -255,13 +255,13 @@ is_overlapping :: proc(state: ^State, player: Vec3, block_pos: [3]i32, block: Bl
     return false
 }
 
-is_overlapping_at :: proc(state: ^State, player: Vec3, global_pos: [3]i32) -> bool {
-    return is_overlapping(state, player, global_pos, world_get_block(state, global_pos))
+is_overlapping_at :: proc(player: Vec3, global_pos: [3]i32) -> bool {
+    return is_overlapping(player, global_pos, world_get_block(global_pos))
 }
 
 closest_hit: rl.RayCollision
 
-raycast :: proc(state: ^State) {
+raycast :: proc() {
     //TODO closest hit normal can hit face diagonally
     center := Vec2{f32(screen.x/2), f32(screen.y/2)}
     ray := rl.GetScreenToWorldRay(center, state.cam)
@@ -306,10 +306,10 @@ raycast :: proc(state: ^State) {
     }
 }
 
-draw_player_target_box :: proc(state: ^State) {
+draw_player_target_box :: proc() {
     if state.looking_at_block {
         pos := to_vec3(state.look_target)
-        block := get_target_block(state)
+        block := get_target_block()
         
         bbox := get_block_bbox(block)
         
@@ -322,7 +322,7 @@ draw_player_target_box :: proc(state: ^State) {
         draw_bounding_box_thick(bbox, t, rl.Color{0, 0, 0, 150})
     }
     if state.show_debug {
-        draw_xyz(state)
+        draw_xyz()
     }
 }
 
@@ -356,7 +356,7 @@ draw_bounding_box_thick :: proc(bbox: rl.BoundingBox, t: f32, color: rl.Color) {
     rl.DrawCubeV({max.x, cy, max.z}, {t, wy, t}, color)
 }
 
-draw_xyz :: proc(state: ^State) {
+draw_xyz :: proc() {
     position := state.cam.target - state.forward*0.9
     length: f32 = 0.02
     

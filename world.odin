@@ -8,13 +8,13 @@ Chunk :: struct {
     block_keys: [16*16*16]int,
 }
 
-world_init :: proc(state: ^State) {
+world_init :: proc() {
     state.world.chunks = make(map[[3]i32]^Chunk)
     
     for x in -8..<8 {
         for z in -8..<8 {
-            world_set_block(state, {i32(x), 0, i32(z)}, {.Stone, {}})
-            world_set_block(state, {i32(x), 1, i32(z)}, {.Dirt, {}})
+            world_set_block({i32(x), 0, i32(z)}, Block{.Stone, {}})
+            world_set_block({i32(x), 1, i32(z)}, Block{.Dirt, {}})
         }
     }
 }
@@ -70,7 +70,7 @@ chunk_clean_palette :: proc(chunk: ^Chunk) {
     chunk.palette = new_palette
 }
 
-world_get_block :: proc(state: ^State, pos: [3]i32) -> Block {
+world_get_block :: proc(pos: [3]i32) -> Block {
     c_pos := get_chunk_pos(pos)
     if c_pos in state.world.chunks {
         chunk := state.world.chunks[c_pos]
@@ -81,7 +81,7 @@ world_get_block :: proc(state: ^State, pos: [3]i32) -> Block {
     return {.Air, {}}
 }
 
-world_set_block :: proc(state: ^State, pos: [3]i32, block: Block) {
+world_set_block :: proc(pos: [3]i32, block: Block) {
     c_pos := get_chunk_pos(pos)
     if c_pos not_in state.world.chunks {
         chunk := new(Chunk)
@@ -107,19 +107,19 @@ make_player_block_iterator :: proc(center: [3]i32) -> Player_Block_Iterator {
     }
 }
 
-get_target_block :: proc(state: ^State) -> Block {
-    return world_get_block(state, state.look_target)
+get_target_block :: proc() -> Block {
+    return world_get_block(state.look_target)
 }
 
-set_target_block :: proc(state: ^State, block: Block) {
-    world_set_block(state, state.look_target, block)
+set_target_block :: proc(block: Block) {
+    world_set_block(state.look_target, block)
 }
 
-player_block_iterator_next :: proc(state: ^State, it: ^Player_Block_Iterator) -> (block: Block, coords: [3]i32, cond: bool) {
+player_block_iterator_next :: proc(it: ^Player_Block_Iterator) -> (block: Block, coords: [3]i32, cond: bool) {
     if it.curr.x > it.center.x + 1 do return {}, {}, false
 
     coords = it.curr
-    block = world_get_block(state, coords)
+    block = world_get_block(coords)
     cond = true
 
     it.curr.z += 1
