@@ -167,22 +167,9 @@ update_player :: proc(delta: f32) {
             raycast()
         }
         if rl.IsMouseButtonPressed(.RIGHT) && state.looking_at_block {
-            if state.is_shifting && state.looking_at_block {
-                if pos, ok := state.select_block_pos.([3]i32); ok {
-                    block := world_get_block(pos)
-                    block.data.arrow = Arrow{state.look_target}
-                    world_set_block(pos, block)
-                    state.select_block_pos = nil
-                }
-                else {
-                    state.select_block_pos = state.look_target
-                }
-            }
-            else {
-                if state.held_item != nil {
-                    item := items[state.held_item.?]
-                    if item.on_right_click != nil do item.on_right_click()
-                }
+            if state.held_item != nil {
+                item := items[state.held_item.?]
+                if item.on_right_click != nil do item.on_right_click()
             }
         }
     }

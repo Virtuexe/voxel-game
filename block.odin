@@ -269,6 +269,19 @@ Arrow :: struct {
     to: [3]i32
 }
 
+wire_use :: proc() {
+    if !state.looking_at_block do return
+    if pos, ok := state.select_block_pos.([3]i32); ok {
+        block := world_get_block(pos)
+        block.data.arrow = Arrow{state.look_target}
+        world_set_block(pos, block)
+        state.select_block_pos = nil
+    }
+    else {
+        state.select_block_pos = state.look_target
+    }
+}
+
 block_place :: proc() {
     if state.held_item == nil do return
     block_type, ok := items[state.held_item.?].block.?

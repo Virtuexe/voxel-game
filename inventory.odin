@@ -1,16 +1,18 @@
 package voxel_game
 
+import rl "vendor:raylib"
+
 init_hotbar :: proc() {
     state.hotbar = {
         .Dirt,
         .Stone,
-        .Cobblestone,
         .Glass,
         .Planks,
         .Redstone,
         .Slab,
         .Stairs,
         .Piston,
+        .Wire,
     }
     state.held_item = state.hotbar[0]
 }
@@ -25,6 +27,8 @@ init_inventory :: proc() {
                 tex_type := block_infos[block].textures[0][.Top]
                 items[type].texture = block_textures[tex_type]
             }
+        } else if type == .Wire {
+            items[type].texture = rl.LoadTexture("assets/wire.png")
         }
     }
 }

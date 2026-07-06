@@ -4,7 +4,8 @@ import ui "raylib-ui"
 
 Item_Type :: enum {
     Dirt, Stone, Cobblestone, Glass, Planks,
-    Redstone, Slab, Stairs, Piston
+    Redstone, Slab, Stairs, Piston,
+    Wire
 }
 
 Item_Info :: struct {
@@ -49,4 +50,7 @@ items := [Item_Type]Item_Info{
         block = .Piston,
         on_right_click = block_place,
     },
+    .Wire = {
+        on_right_click = wire_use,
+    }
 }
