@@ -296,8 +296,9 @@ raycast :: proc() {
     }
     if state.looking_at_block {
         pos := to_vec3(state.look_target)
+        block := get_target_block()
         normal := fix_normal(closest_hit.normal)
-        local_hit := closest_hit.point - (pos + {0.5, 0.5, 0.5})
+        local_hit := closest_hit.point - (pos + get_block_center(block))
         face_hit := local_hit - local_hit*normal*normal
         face_normal := fix_normal(face_hit)
 

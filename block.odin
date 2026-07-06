@@ -7,6 +7,7 @@ Block_Model_Data :: struct {
     model: rl.Model,
     visual_bbox: rl.BoundingBox,
     collision_bboxes: []rl.BoundingBox,
+    center: Vec3,
 }
 block_models: [Block_Type]Block_Model_Data
 redstone_render_texture: [(1<<len(Cardinal))*2]rl.RenderTexture2D
@@ -167,6 +168,14 @@ get_block_model :: proc(block: Block) -> rl.Model {
     rot_mat := get_block_transform(block)
     model.transform = model.transform * rot_mat
     return model
+}
+
+// Returns the visual center of the block in local space (accounting for rotation)
+get_block_center :: proc(block: Block) -> rl.Vector3 {
+    if block.type == .Air do return {0.5, 0.5, 0.5}
+    base_center := block_models[block.type].center
+    rot_mat := get_block_transform(block)
+    return rl.Vector3Transform(base_center, rot_mat)
 }
 
 // Returns an axis-aligned bounding box for the block in local space,

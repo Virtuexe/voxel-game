@@ -8,10 +8,17 @@ Block_Model_Builder :: struct {
     texcoords: [MAX_TEXTURE_GROUPS * 6][dynamic][2]f32,
     indices:   [MAX_TEXTURE_GROUPS * 6][dynamic]u16,
     collision_bboxes: [dynamic]rl.BoundingBox,
+    center: Vec3,
 }
 
 builder_init :: proc() -> Block_Model_Builder {
-    return Block_Model_Builder{}
+    b: Block_Model_Builder
+    b.center = {0.5, 0.5, 0.5}
+    return b
+}
+
+builder_set_center :: proc(b: ^Block_Model_Builder, center: Vec3) {
+    b.center = center
 }
 
 builder_destroy :: proc(b: ^Block_Model_Builder) {

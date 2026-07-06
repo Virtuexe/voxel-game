@@ -78,9 +78,11 @@ init_models :: proc() {
             builder_add_box(&b, {0, 0, 0}, {1, 1, 1}, {}, 0, info.uv_rotations[0], info.uv_rects[0])
         case .Slab:
             builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {}, 0, info.uv_rotations[0], info.uv_rects[0])
+            builder_set_center(&b, {0.5, 0.25, 0.5})
         case .Decal:
             builder_add_quad(&b, .Top, {0, 0.001, 0}, {1, 0.001, 1}, 0, info.uv_rotations[0][.Top], info.uv_rects[0][.Top])
             builder_add_collision_box(&b, {0, 0, 0}, {1, 0.01, 1})
+            builder_set_center(&b, {0.5, 0.0, 0.5})
         case .Stairs:
             builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {.Top}, 0, info.uv_rotations[0], info.uv_rects[0])
             builder_add_quad(&b, .Top, {0, 0.5, 0.5}, {1, 0.5, 1}, 0, info.uv_rotations[0][.Top], info.uv_rects[0][.Top])
@@ -91,6 +93,7 @@ init_models :: proc() {
             builder_add_box(&b, {0.375, -0.25+1, 0.375}, {0.625, 0.75+1, 0.625}, {}, 1, info.uv_rotations[1], info.uv_rects[1])
             //head
             builder_add_box(&b, {0, 0.75+1, 0}, {1, 1+1, 1}, {}, 2, info.uv_rotations[2], info.uv_rects[2])
+            builder_set_center(&b, {0.5, 0.5, 0.5})
         }
         
         m := builder_build(&b)
@@ -98,6 +101,7 @@ init_models :: proc() {
             model = m,
             visual_bbox = builder_get_visual_bbox(&b),
             collision_bboxes = slice.clone(b.collision_bboxes[:]),
+            center = b.center,
         }
         
         builder_destroy(&b)
@@ -196,8 +200,9 @@ draw_world_chunks :: proc() {
 
                 //Arrow
                 if arrow, ok := block.data.arrow.(Arrow); ok {
-                    from_center := p
-                    to_center   := to_vec3(arrow.to)
+                    from_center := p + get_block_center(block)
+                    target_block := world_get_block(arrow.to)
+                    to_center   := to_vec3(arrow.to) + get_block_center(target_block)
                     diff        := to_center - from_center
                     total_dist  := linalg.length(diff)
                     if total_dist > 0.001 {
