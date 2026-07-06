@@ -147,7 +147,7 @@ update_player :: proc(delta: f32) {
         if rl.IsKeyPressed(.SEVEN) { state.hotbar_index = 6 }
         if rl.IsKeyPressed(.EIGHT) { state.hotbar_index = 7 }
         if rl.IsKeyPressed(.NINE) { state.hotbar_index = 8 }
-        state.held_block = state.hotbar[state.hotbar_index]
+        state.held_item = state.hotbar[state.hotbar_index]
     }
     
     if state.use_mouse_input {
@@ -155,11 +155,11 @@ update_player :: proc(delta: f32) {
         if scroll > 0 {
             state.hotbar_index -= 1
             if state.hotbar_index < 0 do state.hotbar_index = 8
-            state.held_block = state.hotbar[state.hotbar_index]
+            state.held_item = state.hotbar[state.hotbar_index]
         } else if scroll < 0 {
             state.hotbar_index += 1
             if state.hotbar_index > 8 do state.hotbar_index = 0
-            state.held_block = state.hotbar[state.hotbar_index]
+            state.held_item = state.hotbar[state.hotbar_index]
         }
 
         if rl.IsMouseButtonPressed(.LEFT) && state.looking_at_block {
@@ -179,7 +179,10 @@ update_player :: proc(delta: f32) {
                 }
             }
             else {
-                block_place()
+                if state.held_item != nil {
+                    item := items[state.held_item.?]
+                    if item.on_right_click != nil do item.on_right_click()
+                }
             }
         }
     }
@@ -294,7 +297,7 @@ raycast :: proc() {
     if state.looking_at_block {
         pos := to_vec3(state.look_target)
         normal := fix_normal(closest_hit.normal)
-        local_hit := closest_hit.point - pos
+        local_hit := closest_hit.point - (pos + {0.5, 0.5, 0.5})
         face_hit := local_hit - local_hit*normal*normal
         face_normal := fix_normal(face_hit)
 

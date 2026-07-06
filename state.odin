@@ -25,18 +25,19 @@ Player_Input :: struct {
 }
 
 Player_Interaction :: struct {
-    held_block: Block,
-    hotbar: [9]Block,
-    hotbar_index: int,
-    looking_at_block: bool,
     look_target: [3]i32,
-    place_pos: Vec3,
-    place_target: [3]i32,
+    looking_at_block: bool,
+    hit_face: Block_Face,
     hit_normal: Vec3,
+    place_target: [3]i32,
+    place_pos: Vec3,
+    place_dir: Cardinal,
     place_dir_normal: Vec3,
     place_dir_normal_2d: Vec2,
-    hit_face: Block_Face,
-    place_dir: Cardinal,
+    
+    held_item: Maybe(Item_Type),
+    hotbar: [9]Maybe(Item_Type),
+    hotbar_index: int,
     select_block_pos: Maybe([3]i32),
 }
 

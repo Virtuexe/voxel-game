@@ -14,7 +14,7 @@ redstone_render_texture: [(1<<len(Cardinal))*2]rl.RenderTexture2D
 
 Block_Type :: enum {
     Air, Dirt, Stone, Cobblestone, Glass, Planks,
-    Redstone, Slab, Stairs, PistonHead
+    Redstone, Slab, Stairs, Piston
 }
 
 Block_Info :: struct {
@@ -30,7 +30,7 @@ Block_Flag :: enum {
     HAS_CARDINAL,
     HAS_BLOCK_FACE,
 }
-Block_Model :: enum {Cube, Slab, Decal, Stairs, PistonHead}
+Block_Model :: enum {Cube, Slab, Decal, Stairs, Piston}
 block_infos := [Block_Type]Block_Info {
     .Air = {
         flags = {},
@@ -75,10 +75,10 @@ block_infos := [Block_Type]Block_Info {
         item = .Stairs,
         model = .Stairs,
     },
-    .PistonHead = {
+    .Piston = {
         flags = {.HAS_BLOCK_FACE},
-        item = .PistonHead,
-        model = .PistonHead,
+        item = .Piston,
+        model = .Piston,
     }
 }
 
@@ -90,7 +90,6 @@ init_block_infos :: proc() {
     block_infos[.Dirt].textures = fill_textures(.Dirt)
     
     block_infos[.Stone].textures = fill_textures(.Stone)
-    block_infos[.Stone].textures[.Bottom] = .Dirt
     
     block_infos[.Cobblestone].textures = fill_textures(.Cobblestone)
     
@@ -103,9 +102,10 @@ init_block_infos :: proc() {
     block_infos[.Slab].textures[.Bottom] = .Slab_Top
     
     block_infos[.Stairs].textures = fill_textures(.Planks)
-    block_infos[.Stairs].textures[.Top] = .Stone
     
-    block_infos[.PistonHead].textures = fill_textures(.Planks)
+    block_infos[.Piston].textures = fill_textures(.Piston_Side)
+    block_infos[.Piston].textures[.Top] = .Piston_Top
+    block_infos[.Piston].textures[.Bottom] = .Piston_Bottom
 }
 
 block_init :: proc() {
@@ -114,7 +114,7 @@ block_init :: proc() {
     init_slab_model()
     init_decal_model()
     init_stairs_model()
-    init_piston_head_model()
+    init_piston_model()
 }
 //TODO unload textures
 
@@ -229,7 +229,10 @@ Arrow :: struct {
 }
 
 block_place :: proc() {
-    block := state.held_block
+    if state.held_item == nil do return
+    block_type, ok := items[state.held_item.?].block.?
+    if !ok do return
+    block := Block{type=block_type}
     fmt.println(state.place_dir)
     if is_overlapping(state.cam.position, state.place_target, block) do return
     if world_get_block(state.place_target).type != .Air do return

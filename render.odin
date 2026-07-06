@@ -149,17 +149,18 @@ init_stairs_model :: proc() {
     }
 }
 
-init_piston_head_model :: proc() {
+init_piston_model :: proc() {
     b := builder_init()
     defer builder_destroy(&b)
     
-    // The pushing face/base (y=0 to y=0.25)
-    builder_add_box(&b, {0, 0, 0}, {1, 0.25, 1})
-    // The arm (y=0.25 to y=1.0)
-    builder_add_box(&b, {0.375, 0.25, 0.375}, {0.625, 1.25, 0.625})
+    builder_add_box(&b, {0, 0, 0}, {1, 0.75, 1})
+    //arm
+    builder_add_box(&b, {0, 0.75+1, 0}, {1, 1+1, 1})
+    builder_add_box(&b, {0.375, -0.25+1, 0.375}, {0.625, 0.75+1, 0.625})
+
     
     m := builder_build(&b)
-    block_models[.PistonHead] = {
+    block_models[.Piston] = {
         model = m,
         visual_bbox = builder_get_visual_bbox(&b),
         collision_bboxes = slice.clone(b.collision_bboxes[:]),

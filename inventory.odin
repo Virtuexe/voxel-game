@@ -2,17 +2,17 @@ package voxel_game
 
 init_hotbar :: proc() {
     state.hotbar = {
-        {.Dirt, {}},
-        {.Stone, {}},
-        {.Cobblestone, {}},
-        {.Glass, {}},
-        {.Planks, {}},
-        {.Redstone, {}},
-        {.Slab, {}},
-        {.Stairs, {}},
-        {.PistonHead, {}},
+        .Dirt,
+        .Stone,
+        .Cobblestone,
+        .Glass,
+        .Planks,
+        .Redstone,
+        .Slab,
+        .Stairs,
+        .Piston,
     }
-    state.held_block = state.hotbar[0]
+    state.held_item = state.hotbar[0]
 }
 
 init_inventory :: proc() {
@@ -68,12 +68,9 @@ draw_hotbar :: proc(ustate: ^UI_State) {
             ui.draw_rec_lines(ustate.padding_boxes[i], ustate.padding.x, ui.WHITE)
         }
         
-        block := state.hotbar[i]
-        if block.type != .Air {
-            info := block_infos[block.type]
-            if item, ok := info.item.?; ok {
-                draw_item(rec, items[item].texture)
-            }
+        item := state.hotbar[i]
+        if item != nil {
+            draw_item(rec, items[item.?].texture)
         }
     }
 }
