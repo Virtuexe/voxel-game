@@ -15,6 +15,7 @@ Player_Movement :: struct {
     yaw: f32,
     pitch: f32,
     is_shifting: bool,
+    eye_height: f32,
 }
 
 Player_Input :: struct {
@@ -43,7 +44,7 @@ Player_Interaction :: struct {
 
 Player_Collider :: struct {
     collider_size: Vec3,
-    collider_offset: Vec3,
+    position: Vec3,
     last_position: Vec3,
 }
 
@@ -64,7 +65,6 @@ State :: struct {
 
 state := State {
     cam = {
-        position = {0, 5, 5},
         up       = {0, 1, 0},
         fovy     = 90,
         projection = .PERSPECTIVE,
@@ -75,6 +75,7 @@ state := State {
         gravity = 32,
         jump_strength = 8.4,
         yaw = 90,
+        eye_height = 1.8,
     },
     input = {
         mouse_sensitivity = 0.1,
@@ -85,6 +86,7 @@ state := State {
         looking_at_block = false,
     },
     collider = {
+        position = {0, 5, 5},
         collider_size = Vec3{0.5, 2, 0.5},
     },
 }

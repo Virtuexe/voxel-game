@@ -49,15 +49,26 @@ update_player :: proc(delta: f32) {
 
     //MOVEMENT
     state.is_shifting = rl.IsKeyDown(.LEFT_SHIFT) && state.use_key_input
+    
+    if !state.is_shifting {
+        // Temporarily set standing height to test for collision
+        state.collider_size.y = 2.0
+        if is_player_colliding(state.position) {
+            state.is_shifting = true // Force crouching if standing would clip
+        }
+    }
+
     move_speed := state.move_speed
     if state.is_shifting {
         move_speed *= 0.5
         state.collider_size.y = 1.5
+        state.eye_height = 1.3
     } else {
         if rl.IsKeyDown(.LEFT_CONTROL) {
             move_speed *= 1.5
         }
         state.collider_size.y = 2.0
+        state.eye_height = 1.8
     }
     wasd: Vec3
     if state.use_key_input do wasd = get_wasd_input(forward_move, right_move, up)
@@ -75,24 +86,24 @@ update_player :: proc(delta: f32) {
     state.is_grounded = false
     for i in 0..<3 {
         if state.is_shifting && was_grounded && !state.is_flying && i != 1 {
-            test_pos := state.cam.position
+            test_pos := state.position
             test_pos[i] += movement[i]
             if !is_player_supported(test_pos) {
                 movement[i] = 0
             }
         }
-        state.cam.position[i] += movement[i]
+        state.position[i] += movement[i]
         center := [3]i32{
-            i32(math.floor(state.cam.position.x)), 
-            i32(math.floor(state.cam.position.y - state.collider_offset.y)), 
-            i32(math.floor(state.cam.position.z))
+            i32(math.floor(state.position.x)), 
+            i32(math.floor(state.position.y)), 
+            i32(math.floor(state.position.z))
         }
         it := make_player_block_iterator(center)
         for block, global_pos in player_block_iterator_next(&it) {
             block_pos := to_vec3(global_pos)
-            if !is_overlapping(state.cam.position, global_pos, block) do continue
+            if !is_overlapping(state.position, global_pos, block) do continue
 
-            feet_y := state.cam.position.y - state.collider_offset.y
+            feet_y := state.position.y
             bbox_buf: [8]rl.BoundingBox
             bboxes := get_block_bboxes(block, &bbox_buf)
             for model_bbox in bboxes {
@@ -100,25 +111,29 @@ update_player :: proc(delta: f32) {
                 b_max := block_pos + model_bbox.max
 
                 // Quick per-box overlap check
-                p_min := state.cam.position - state.collider_offset
+                p_min := state.position - {state.collider_size.x/2, 0, state.collider_size.z/2}
                 p_max := p_min + state.collider_size
                 if min(p_max.x,b_max.x)-max(p_min.x,b_min.x) <= 0.001 do continue
                 if min(p_max.y,b_max.y)-max(p_min.y,b_min.y) <= 0.001 do continue
                 if min(p_max.z,b_max.z)-max(p_min.z,b_min.z) <= 0.001 do continue
 
                 if i != 1 && was_grounded && b_max.y - feet_y <= 0.6 && b_max.y > feet_y {
-                    test_pos := state.cam.position
-                    test_pos.y = b_max.y + state.collider_offset.y
+                    test_pos := state.position
+                    test_pos.y = b_max.y
                     if !is_player_colliding(test_pos) {
-                        state.cam.position.y = test_pos.y
+                        state.position.y = test_pos.y
                         continue
                     }
                 }
 
                 if movement[i] < 0 {
-                    state.cam.position[i] = b_max[i] + state.collider_offset[i]
+                    if i == 0 { state.position.x = b_max.x + state.collider_size.x/2 }
+                    else if i == 1 { state.position.y = b_max.y }
+                    else if i == 2 { state.position.z = b_max.z + state.collider_size.z/2 }
                 } else if movement[i] > 0 {
-                    state.cam.position[i] = b_min[i] + state.collider_offset[i] - state.collider_size[i]
+                    if i == 0 { state.position.x = b_min.x - state.collider_size.x/2 }
+                    else if i == 1 { state.position.y = b_min.y - state.collider_size.y }
+                    else if i == 2 { state.position.z = b_min.z - state.collider_size.z/2 }
                 }
 
                 movement[i] = 0
@@ -130,7 +145,8 @@ update_player :: proc(delta: f32) {
             }
         }
     }
-    state.last_position = state.cam.position
+    state.last_position = state.position
+    state.cam.position = state.position + {0, state.eye_height, 0}
     state.cam.target = state.cam.position + forward
 
     //RAYCAST
@@ -204,7 +220,7 @@ get_wasd_input :: proc(forward, right, up: Vec3) -> (wasd:Vec3) {
 is_player_colliding :: proc(pos: Vec3) -> bool {
     center := [3]i32{
         i32(math.floor(pos.x)), 
-        i32(math.floor(pos.y - state.collider_offset.y)), 
+        i32(math.floor(pos.y)), 
         i32(math.floor(pos.z))
     }
     it := make_player_block_iterator(center)
@@ -228,7 +244,7 @@ is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block) -> bool {
     if .NO_COLLISION in info.flags do return false
     block_pos := to_vec3(block_pos)
 
-    p_min := player - state.collider_offset
+    p_min := player - {state.collider_size.x/2, 0, state.collider_size.z/2}
     p_max := p_min + state.collider_size
 
     // Test against each sub-bbox (2 for stairs, 1 for everything else)

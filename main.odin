@@ -68,8 +68,7 @@ main :: proc() {
 
     ustate := UI_State{}
 
-    state.collider_offset = state.collider_size/2 + {0, state.collider_size.y/4, 0}
-    state.last_position = state.cam.position
+    state.last_position = state.position
     //RAYLIB
     rl.SetTraceLogLevel(.WARNING)
     rl.SetWindowState({.WINDOW_RESIZABLE})

@@ -288,7 +288,7 @@ block_place :: proc() {
     if !ok do return
     block := Block{type=block_type}
     fmt.println(state.place_dir)
-    if is_overlapping(state.cam.position, state.place_target, block) do return
+    if is_overlapping(state.position, state.place_target, block) do return
     if world_get_block(state.place_target).type != .Air do return
     #partial switch block.type {
     case .Redstone:
