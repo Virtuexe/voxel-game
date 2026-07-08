@@ -81,7 +81,7 @@ init_models :: proc() {
         if type == .Air do continue
         
         info := block_infos[type]
-        tex_info := block_textures[type]
+        tex_info := block_infos[type].texture
         b := builder_init()
         facing := Block_Face.North
         
@@ -185,13 +185,20 @@ get_redstone_texture :: proc(on: bool, connections: [Cardinal]bool) -> rl.Render
 }
 
 draw_world_chunks :: proc() {
+    show_wires := false
+    if state.held_item != nil {
+        if .WIRES_VISIBLE in items[state.held_item.?].flags {
+            show_wires = true
+        }
+    }
+
     for do_transparent in ([]bool{false, true}) {
         for c_pos, chunk in state.world.chunks {
             for block_key, i in chunk.block_keys {
                 if block_key == 0 do continue
                 block := chunk.palette[block_key]
                 info := block_infos[block.type]
-                tex_info := block_textures[block.type]
+                tex_info := block_infos[block.type].texture
                 
                 if do_transparent != (.TEXTURE_TRANSPARENT in info.flags) do continue
 
@@ -231,7 +238,7 @@ draw_world_chunks :: proc() {
                 }
 
                 //Wire
-                if block.data.has_wires {
+                if show_wires && block.data.has_wires {
                     if wires, ok := state.world.wires[global_pos]; ok {
                         for wire in wires {
                             from_center := p + get_block_center(block)

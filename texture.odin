@@ -42,8 +42,6 @@ Block_Texture :: struct {
     lock_uv_y: [MAX_TEXTURE_GROUPS][Block_Face]bool,
 }
 
-block_textures: [Block_Type]Block_Texture
-
 UV_Rotation :: enum {
     Deg_0 = 0,
     Deg_90_CW = 1,
@@ -81,35 +79,44 @@ pixel_uv :: proc(x, y, w, h: f32) -> UV_Rect {
 }
 
 init_block_textures :: proc() {
-    block_textures[.Dirt].textures[0] = fill_textures(.Dirt)
-    
-    block_textures[.Stone].textures[0] = fill_textures(.Stone)
-    
-    block_textures[.Cobblestone].textures[0] = fill_textures(.Cobblestone)
-    
-    block_textures[.Glass].textures[0] = fill_textures(.Glass)
-    
-    block_textures[.Planks].textures[0] = fill_textures(.Planks)
-    
-    block_textures[.Slab].textures[0] = fill_textures(.Slab_Side)
-    block_textures[.Slab].textures[0][.Top] = .Slab_Top
-    block_textures[.Slab].textures[0][.Bottom] = .Slab_Top
-    
-    block_textures[.Stairs].textures[0] = fill_textures(.Planks)
-    block_textures[.Stairs].lock_uv_y[0] = fill_lock_uv_y(true)
-    
-    block_textures[.Piston].textures[0] = fill_textures(.Piston_Side)
-    block_textures[.Piston].textures[0][.Top] = .Piston_Inner
-    block_textures[.Piston].textures[0][.Bottom] = .Piston_Bottom
-    
-    block_textures[.Piston].textures[1] = fill_textures(.Piston_Side)
-    block_textures[.Piston].uv_rects[1] = fill_uv_rects(pixel_uv(0, 0, 16, 4))
-    block_textures[.Piston].uv_rotations[1] = fill_uv_rotations(.Deg_90_CCW)
+    for &info, block in block_infos {
+        texture := &info.texture
+        switch block {
+        case .Air:
+        case .Dirt:
+            texture.textures[0] = fill_textures(.Dirt)
+        case .Stone:
+            texture.textures[0] = fill_textures(.Stone)
+        case .Cobblestone:
+            texture.textures[0] = fill_textures(.Cobblestone)
+        case .Glass:
+            texture.textures[0] = fill_textures(.Glass)
+        case .Planks:
+            texture.textures[0] = fill_textures(.Planks)
+        case .Slab:
+            texture.textures[0] = fill_textures(.Slab_Side)
+            texture.textures[0][.Top] = .Slab_Top
+            texture.textures[0][.Bottom] = .Slab_Top
+        case .Stairs:
+            texture.textures[0] = fill_textures(.Planks)
+            texture.lock_uv_y[0] = fill_lock_uv_y(true)
+        case .Piston:
+            texture.textures[0] = fill_textures(.Piston_Side)
+            texture.textures[0][.Top] = .Piston_Inner
+            texture.textures[0][.Bottom] = .Piston_Bottom
+            
+            texture.textures[1] = fill_textures(.Piston_Side)
+            texture.uv_rects[1] = fill_uv_rects(pixel_uv(0, 0, 16, 4))
+            texture.uv_rotations[1] = fill_uv_rotations(.Deg_90_CCW)
 
-    block_textures[.Piston].textures[2] = fill_textures(.Piston_Side)
-    block_textures[.Piston].textures[2][.Top] = .Piston_Top
-    block_textures[.Piston].textures[2][.Bottom] = .Piston_Top
-
-    block_textures[.Button].textures[0] = fill_textures(.Stone)
-    block_textures[.Button].lock_uv_y[0] = fill_lock_uv_y(true)
+            texture.textures[2] = fill_textures(.Piston_Side)
+            texture.textures[2][.Top] = .Piston_Top
+            texture.textures[2][.Bottom] = .Piston_Top
+        case .Button:
+            texture.textures[0] = fill_textures(.Stone)
+            texture.lock_uv_y[0] = fill_lock_uv_y(true)
+        case .Redstone:
+            // Redstone texture is handled procedurally based on connections
+        }
+    }
 }

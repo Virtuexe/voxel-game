@@ -22,9 +22,10 @@ Block_Info :: struct {
     flags: bit_set[Block_Flag],
     item: Maybe(Item_Type),
     model: Block_Model,
+    texture: Block_Texture,
+    on_right_click: Maybe(proc(pos: [3]i32)),
+    on_activate: Maybe(proc(pos: [3]i32))
 }
-
-
 Block_Flag :: enum {
     TEXTURE_TRANSPARENT,
     STATEFUL,
@@ -34,7 +35,6 @@ Block_Flag :: enum {
     WIRE_INPUT,
     WIRE_OUTPUT,
 }
-
 Block_Model :: enum {Cube, Slab, Decal, Stairs, Piston, Button}
 block_infos := [Block_Type]Block_Info {
     .Air = {
@@ -84,11 +84,13 @@ block_infos := [Block_Type]Block_Info {
         flags = {.HAS_BLOCK_FACE, .WIRE_OUTPUT},
         item = .Piston,
         model = .Piston,
+        on_activate = piston_activate
     },
     .Button = {
         flags = {.HAS_BLOCK_FACE, .WIRE_INPUT},
         item = .Button,
         model = .Button,
+        on_right_click = activate_wired_blocks
     }
 }
 
@@ -99,6 +101,50 @@ block_init :: proc() {
     init_models()
 }
 //TODO unload textures
+
+//runs activate function of all block
+activate_wired_blocks :: proc(pos: [3]i32) {
+    block := world_get_block(pos)
+    if !block.data.has_wires do return
+    
+    if wires, ok := state.world.wires[pos]; ok {
+        for wire in wires {
+            target_pos := wire.to
+            target_block := world_get_block(target_pos)
+            info := block_infos[target_block.type]
+            if info.on_activate != nil {
+                info.on_activate.?(target_pos)
+            }
+        }
+    }
+}
+//will push block that is facing to, if Air will instead pull block to piston if also Air do nothing
+piston_activate :: proc(pos: [3]i32) {
+    piston_block := world_get_block(pos)
+    if piston_block.type != .Piston do return
+    
+    normal := face_to_normal(piston_block.data.facing)
+    dir := [3]i32{i32(normal.x), i32(normal.y), i32(normal.z)}
+    
+    target_pos := pos + dir
+    target_block := world_get_block(target_pos)
+    
+    if target_block.type != .Air {
+        next_pos := target_pos + dir
+        next_block := world_get_block(next_pos)
+        if next_block.type == .Air {
+            world_set_block(next_pos, target_block)
+            world_set_block(target_pos, Block{.Air, {}})
+        }
+    } else {
+        next_pos := target_pos + dir
+        next_block := world_get_block(next_pos)
+        if next_block.type != .Air {
+            world_set_block(target_pos, next_block)
+            world_set_block(next_pos, Block{.Air, {}})
+        }
+    }
+}
 
 // Returns the base model for a block type (no transform applied)
 get_base_model :: proc(block: Block) -> rl.Model {
@@ -218,74 +264,7 @@ Wire :: struct {
     to: [3]i32
 }
 
-wire_use :: proc() {
-    if !state.looking_at_block do return
-    if pos, ok := state.select_block_pos.([3]i32); ok {
-        source_block := world_get_block(pos)
-        target_block := world_get_block(state.look_target)
-        
-        source_info := block_infos[source_block.type]
-        target_info := block_infos[target_block.type]
-        
-        if !(.WIRE_INPUT in source_info.flags) || !(.WIRE_OUTPUT in target_info.flags) {
-            state.select_block_pos = nil
-            return
-        }
-        
-        if pos not_in state.world.wires {
-            state.world.wires[pos] = make([dynamic]Wire)
-        }
-        
-        target_wire := Wire{state.look_target}
-        found_idx := -1
-        for a, i in state.world.wires[pos] {
-            if a == target_wire {
-                found_idx = i
-                break
-            }
-        }
-        
-        if found_idx >= 0 {
-            unordered_remove(&state.world.wires[pos], found_idx)
-            if len(state.world.wires[pos]) == 0 {
-                source_block.data.has_wires = false
-                world_set_block(pos, source_block)
-            }
-        } else {
-            append(&state.world.wires[pos], target_wire)
-            if !source_block.data.has_wires {
-                source_block.data.has_wires = true
-                world_set_block(pos, source_block)
-            }
-        }
-        
-        state.select_block_pos = nil
-    }
-    else {
-        target_block := world_get_block(state.look_target)
-        target_info := block_infos[target_block.type]
-        if .WIRE_INPUT in target_info.flags {
-            state.select_block_pos = state.look_target
-        }
-    }
-}
-
-block_place :: proc() {
-    if state.held_item == nil do return
-    block_type, ok := items[state.held_item.?].block.?
-    if !ok do return
-    block := Block{type=block_type}
-    fmt.println(state.place_dir)
-    if is_overlapping(state.position, state.place_target, block) do return
-    if world_get_block(state.place_target).type != .Air do return
-    #partial switch block.type {
-    case .Redstone:
-        place_redstone()
-    case:
-        place_base_block(block)
-    }
-    raycast()
-}
+//rework, should be in item.odin
 place_base_block :: proc(block: Block) {
     block := block
     info := block_infos[block.type]

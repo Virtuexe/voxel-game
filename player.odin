@@ -187,9 +187,14 @@ update_player :: proc(delta: f32) {
             raycast()
         }
         if rl.IsMouseButtonPressed(.RIGHT) && state.looking_at_block {
-            if state.held_item != nil {
+            target_block := world_get_block(state.look_target)
+            block_info := block_infos[target_block.type]
+            
+            if state.held_item != nil && items[state.held_item.?].on_right_click != nil {
                 item := items[state.held_item.?]
-                if item.on_right_click != nil do item.on_right_click.?()
+                item.on_right_click.?()
+            } else if block_info.on_right_click != nil {
+                block_info.on_right_click.?(state.look_target)
             }
         }
     }
