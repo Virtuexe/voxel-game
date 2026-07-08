@@ -12,79 +12,92 @@ Item_Flag :: enum {
     WIRES_VISIBLE,
 }
 
+Item_Action :: enum {
+    None,
+    Block_Place,
+    Wire_Item_Use,
+}
+Item_Action_Proc :: proc()
+
+item_actions := [Item_Action]Item_Action_Proc {
+    .None = nil,
+    .Block_Place = block_place,
+    .Wire_Item_Use = wire_item_use,
+}
+
 Item_Info :: struct {
     flags: bit_set[Item_Flag],
     block: Maybe(Block_Type),
     name: string,
     texture: Texture_Type,
-    on_right_click: Maybe(proc()),
+    on_right_click: Item_Action,
 }
 items := [Item_Type]Item_Info{
     .Dirt = {
         block = .Dirt,
         name = "Dirt",
         texture = .Dirt,
-        on_right_click = block_place,
+        on_right_click = .Block_Place,
     },
     .Stone = {
         block = .Stone,
         name = "Stone",
         texture = .Stone,
-        on_right_click = block_place,
+        on_right_click = .Block_Place,
     },
     .Cobblestone = {
         block = .Cobblestone,
         name = "Cobblestone",
         texture = .Cobblestone,
-        on_right_click = block_place,
+        on_right_click = .Block_Place,
     },
     .Glass = {
         block = .Glass,
         name = "Glass",
         texture = .Glass,
-        on_right_click = block_place,
+        on_right_click = .Block_Place,
     },
     .Planks = {
         block = .Planks,
         name = "Planks",
         texture = .Planks,
-        on_right_click = block_place,
+        on_right_click = .Block_Place,
     },
     .Redstone = {
         block = .Redstone,
         name = "Redstone",
         texture = .Wire,
-        on_right_click = block_place,
+        on_right_click = .Block_Place,
     },
     .Slab = {
         block = .Slab,
         name = "Slab",
         texture = .Slab_Top,
-        on_right_click = block_place,
+        on_right_click = .Block_Place,
     },
     .Stairs = {
         block = .Stairs,
         name = "Stairs",
         texture = .Planks,
-        on_right_click = block_place,
+        on_right_click = .Block_Place,
     },
     .Piston = {
         block = .Piston,
         name = "Piston",
         texture = .Piston_Top,
-        on_right_click = block_place,
+        on_right_click = .Block_Place,
     },
     .Wire = {
         flags = {.WIRES_VISIBLE},
         name = "Wire",
         texture = .Wire,
-        on_right_click = wire_item_use,
+        on_right_click = .Wire_Item_Use,
     },
     .Button = {
         block = .Button,
         name = "Button",
         texture = .Stone,
-        on_right_click = block_place,
+        on_right_click = .Block_Place,
     }
 }
 

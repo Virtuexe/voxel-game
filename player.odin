@@ -206,11 +206,11 @@ update_player :: proc(delta: f32) {
             target_block := world_get_block(state.look_target)
             block_info := block_infos[target_block.type]
             
-            if state.held_item != nil && items[state.held_item.?].on_right_click != nil {
+            if state.held_item != nil && items[state.held_item.?].on_right_click != .None {
                 item := items[state.held_item.?]
-                item.on_right_click.?()
-            } else if block_info.on_right_click != nil {
-                block_info.on_right_click.?(state.look_target)
+                item_actions[item.on_right_click]()
+            } else if block_info.on_right_click != .None {
+                block_actions[block_info.on_right_click](state.look_target)
             }
         }
     }

@@ -18,13 +18,26 @@ Block_Type :: enum {
     Redstone, Slab, Stairs, Piston, Button,
 }
 
+Block_Action :: enum {
+    None,
+    Activate_Wired_Blocks,
+    Piston_Activate,
+}
+Block_Action_Proc :: proc(pos: [3]i32)
+
+block_actions := [Block_Action]Block_Action_Proc {
+    .None = nil,
+    .Activate_Wired_Blocks = activate_wired_blocks,
+    .Piston_Activate = piston_activate,
+}
+
 Block_Info :: struct {
     flags: bit_set[Block_Flag],
     item: Maybe(Item_Type),
     model: Block_Model,
     texture: Block_Texture,
-    on_right_click: Maybe(proc(pos: [3]i32)),
-    on_activate: Maybe(proc(pos: [3]i32))
+    on_right_click: Block_Action,
+    on_activate: Block_Action,
 }
 Block_Flag :: enum {
     TEXTURE_TRANSPARENT,
@@ -59,6 +72,7 @@ block_infos := [Block_Type]Block_Info {
         flags = {.TEXTURE_TRANSPARENT, .WIRE_INPUT, .WIRE_OUTPUT},
         item = .Glass,
         model = .Cube,
+        on_activate = .Activate_Wired_Blocks
     },
     .Planks = {
         flags = {},
@@ -84,13 +98,13 @@ block_infos := [Block_Type]Block_Info {
         flags = {.HAS_BLOCK_FACE, .WIRE_OUTPUT},
         item = .Piston,
         model = .Piston,
-        on_activate = piston_activate
+        on_activate = .Piston_Activate
     },
     .Button = {
-        flags = {.HAS_BLOCK_FACE, .WIRE_INPUT},
+        flags = {.HAS_BLOCK_FACE, .NO_COLLISION, .WIRE_INPUT},
         item = .Button,
         model = .Button,
-        on_right_click = activate_wired_blocks
+        on_right_click = .Activate_Wired_Blocks
     }
 }
 
@@ -112,8 +126,8 @@ activate_wired_blocks :: proc(pos: [3]i32) {
             target_pos := wire.to
             target_block := world_get_block(target_pos)
             info := block_infos[target_block.type]
-            if info.on_activate != nil {
-                info.on_activate.?(target_pos)
+            if info.on_activate != .None {
+                block_actions[info.on_activate](target_pos)
             }
         }
     }
