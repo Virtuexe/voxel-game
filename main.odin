@@ -145,6 +145,7 @@ update :: proc(ustate: ^UI_State) {
     calc_window()
     delta := get_delta()
 
+    update_input()
     update_player(delta)
 
     update_ui(ustate)

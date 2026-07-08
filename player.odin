@@ -1,5 +1,6 @@
 package voxel_game
 
+import "core:fmt"
 import "core:math"
 import "core:math/linalg"
 import rl "vendor:raylib"
@@ -10,10 +11,10 @@ update_player :: proc(delta: f32) {
     state.mouse_lock = true
     state.use_key_input = true
     state.use_mouse_input = true
-    if rl.IsKeyPressed(.ESCAPE) {
+    if is_pressed(.Menu) {
         state.in_menu = !state.in_menu
     }
-    if rl.IsKeyPressed(.E) {
+    if is_pressed(.Inventory) {
         state.show_inventory = !state.show_inventory
     }
     if state.in_menu || state.code.in_code || state.show_inventory {
@@ -21,7 +22,7 @@ update_player :: proc(delta: f32) {
         state.use_mouse_input = false
         state.use_key_input = false
     }
-    if rl.IsKeyPressed(.F3) {
+    if is_pressed(.Debug) {
         state.show_debug = !state.show_debug
     }
 
@@ -52,7 +53,12 @@ update_player :: proc(delta: f32) {
     state.forward = forward
 
     //MOVEMENT
-    state.is_shifting = rl.IsKeyDown(.LEFT_SHIFT) && state.use_key_input
+    if state.is_grounded && state.is_flying {
+        state.is_flying = false
+        state.apply_gravity = true
+    }
+
+    state.is_shifting = is_down(.Crouch) && state.use_key_input && !state.is_flying
     
     if !state.is_shifting {
         // Temporarily set standing height to test for collision
@@ -68,7 +74,7 @@ update_player :: proc(delta: f32) {
         state.collider_size.y = 1.5
         state.eye_height = 1.3
     } else {
-        if rl.IsKeyDown(.LEFT_CONTROL) {
+        if is_down(.Sprint) {
             move_speed *= 1.5
         }
         state.collider_size.y = 2.0
@@ -80,8 +86,18 @@ update_player :: proc(delta: f32) {
     if state.apply_gravity {
         state.velocity.y -= state.gravity * delta
     }
-    if rl.IsKeyPressed(.SPACE) && state.is_grounded && state.can_jump && state.use_key_input {
+    if is_pressed(.Jump) && state.is_grounded && state.can_jump && state.use_key_input {
         state.velocity.y = state.jump_strength
+    }
+
+    if is_pressed(.Fly) && state.use_key_input {
+        state.is_flying = !state.is_flying
+        if state.is_flying {
+            state.apply_gravity = false
+            state.velocity.y = 0
+        } else {
+            state.apply_gravity = true
+        }
     }
     movement += state.velocity * delta
 
@@ -158,15 +174,15 @@ update_player :: proc(delta: f32) {
 
     //INTERACTION
     if state.use_key_input {
-        if rl.IsKeyPressed(.ONE) { state.hotbar_index = 0 }
-        if rl.IsKeyPressed(.TWO) { state.hotbar_index = 1 }
-        if rl.IsKeyPressed(.THREE) { state.hotbar_index = 2 }
-        if rl.IsKeyPressed(.FOUR) { state.hotbar_index = 3 }
-        if rl.IsKeyPressed(.FIVE) { state.hotbar_index = 4 }
-        if rl.IsKeyPressed(.SIX) { state.hotbar_index = 5 }
-        if rl.IsKeyPressed(.SEVEN) { state.hotbar_index = 6 }
-        if rl.IsKeyPressed(.EIGHT) { state.hotbar_index = 7 }
-        if rl.IsKeyPressed(.NINE) { state.hotbar_index = 8 }
+        if is_pressed(.Hotbar_1) { state.hotbar_index = 0 }
+        if is_pressed(.Hotbar_2) { state.hotbar_index = 1 }
+        if is_pressed(.Hotbar_3) { state.hotbar_index = 2 }
+        if is_pressed(.Hotbar_4) { state.hotbar_index = 3 }
+        if is_pressed(.Hotbar_5) { state.hotbar_index = 4 }
+        if is_pressed(.Hotbar_6) { state.hotbar_index = 5 }
+        if is_pressed(.Hotbar_7) { state.hotbar_index = 6 }
+        if is_pressed(.Hotbar_8) { state.hotbar_index = 7 }
+        if is_pressed(.Hotbar_9) { state.hotbar_index = 8 }
         state.held_item = state.hotbar[state.hotbar_index]
     }
     
@@ -182,11 +198,11 @@ update_player :: proc(delta: f32) {
             state.held_item = state.hotbar[state.hotbar_index]
         }
 
-        if rl.IsMouseButtonPressed(.LEFT) && state.looking_at_block {
+        if is_pressed(.Attack) && state.looking_at_block {
             set_target_block(Block{.Air, {}})
             raycast()
         }
-        if rl.IsMouseButtonPressed(.RIGHT) && state.looking_at_block {
+        if is_pressed(.Use) && state.looking_at_block {
             target_block := world_get_block(state.look_target)
             block_info := block_infos[target_block.type]
             
@@ -201,28 +217,33 @@ update_player :: proc(delta: f32) {
 }
 
 get_wasd_input :: proc(forward, right, up: Vec3) -> (wasd:Vec3) {
-    Key_Vec :: struct{key: rl.KeyboardKey, pos: Vec3}
+    Key_Vec :: struct{key: Action, pos: Vec3}
     key_vec_move := []Key_Vec {
-        {.W, forward},
-        {.S, -forward},
-        {.D, right},
-        {.A, -right},
+        {.Forward, forward},
+        {.Backward, -forward},
+        {.Right, right},
+        {.Left, -right},
     }
     key_vec_fly := []Key_Vec {
-        {.SPACE, up},
-        {.LEFT_SHIFT, -up},
+        {.Jump, up},
+        {.Crouch, -up},
     }
+    wasd_xz: Vec3
     for item in key_vec_move {
-        if rl.IsKeyDown(item.key) {
-            wasd += item.pos
+        if is_down(item.key) {
+            wasd_xz += item.pos
         } 
     }
+    wasd_xz = linalg.normalize0(wasd_xz)
+
+    wasd_y: Vec3
     if state.is_flying do for item in key_vec_fly {
-        if rl.IsKeyDown(item.key) {
-            wasd += item.pos
+        if is_down(item.key) {
+            wasd_y += item.pos
         }
     }
-    wasd = linalg.normalize0(wasd)
+    
+    wasd = wasd_xz + wasd_y
     return
 }
 

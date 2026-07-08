@@ -12,7 +12,7 @@ init_code :: proc() {
 }
 
 update_code :: proc() {
-    if rl.IsKeyPressed(.C) {
+    if is_pressed(.Code) {
         state.code.in_code = !state.code.in_code
         if state.code.in_code {
             rl.ShowCursor()
