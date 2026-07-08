@@ -2,11 +2,16 @@ package voxel_game
 import rl "vendor:raylib"
 import "core:fmt"
 
-//RENDER
+
+Block_Part :: struct {
+    group_id: int,
+    collision_bboxes: []rl.BoundingBox,
+    visual_bbox: rl.BoundingBox,
+}
+
 Block_Model_Data :: struct {
     model: rl.Model,
-    visual_bbox: rl.BoundingBox,
-    collision_bboxes: []rl.BoundingBox,
+    parts: []Block_Part,
     center: Vec3,
     base_facing: Block_Face,
 }
@@ -31,6 +36,8 @@ block_actions := [Block_Action]Block_Action_Proc {
     .Piston_Activate = piston_activate,
 }
 
+
+
 Block_Info :: struct {
     flags: bit_set[Block_Flag],
     item: Maybe(Item_Type),
@@ -38,6 +45,7 @@ Block_Info :: struct {
     texture: Block_Texture,
     on_right_click: Block_Action,
     on_activate: Block_Action,
+    animate: Block_Animate_Action,
 }
 Block_Flag :: enum {
     TEXTURE_TRANSPARENT,
@@ -98,7 +106,8 @@ block_infos := [Block_Type]Block_Info {
         flags = {.HAS_BLOCK_FACE, .WIRE_OUTPUT},
         item = .Piston,
         model = .Piston,
-        on_activate = .Piston_Activate
+        on_activate = .Piston_Activate,
+        animate = .Piston_Animate
     },
     .Button = {
         flags = {.HAS_BLOCK_FACE, .NO_COLLISION, .WIRE_INPUT},
@@ -137,6 +146,11 @@ piston_activate :: proc(pos: [3]i32) {
     piston_block := world_get_block(pos)
     if piston_block.type != .Piston do return
     
+    // Prevent spamming piston while it is busy animating (pushing out, spinning, or pulling back)
+    if piston_block.data.piston.activation_time > 0 && rl.GetTime() - piston_block.data.piston.activation_time < 1.7 {
+        return
+    }
+
     normal := face_to_normal(piston_block.data.facing)
     dir := [3]i32{i32(normal.x), i32(normal.y), i32(normal.z)}
     
@@ -147,28 +161,28 @@ piston_activate :: proc(pos: [3]i32) {
         next_pos := target_pos + dir
         next_block := world_get_block(next_pos)
         if next_block.type == .Air {
-            world_set_block(next_pos, target_block)
-            world_set_block(target_pos, Block{.Air, {}})
+            world_schedule_move(target_pos, next_pos, 0.0, 0.3)
         }
     } else {
         next_pos := target_pos + dir
         next_block := world_get_block(next_pos)
         if next_block.type != .Air {
-            world_set_block(target_pos, next_block)
-            world_set_block(next_pos, Block{.Air, {}})
+            world_schedule_move(next_pos, target_pos, 0.4, 0.3)
         }
     }
+    
+    piston_block.data.piston.activation_time = rl.GetTime()
+    world_set_block(pos, piston_block)
 }
+
+
 
 // Returns the base model for a block type (no transform applied)
 get_base_model :: proc(block: Block) -> rl.Model {
     return block_models[block.type].model
 }
 
-// Returns the base bounding box for a block type (unrotated, local space)
-get_base_bbox :: proc(block: Block) -> rl.BoundingBox {
-    return block_models[block.type].visual_bbox
-}
+
 
 // Returns the model with the correct rotation transform applied.
 // Caller should restore model.transform after drawing if needed.
@@ -188,35 +202,35 @@ get_block_center :: proc(block: Block) -> rl.Vector3 {
 }
 
 // Returns an axis-aligned bounding box for the block in local space,
-// accounting for rotation. Safe to add block_pos to get world-space AABB.
+// accounting for rotation and part animations.
 get_block_bbox :: proc(block: Block) -> rl.BoundingBox {
-    base := get_base_bbox(block)
+    model_data := block_models[block.type]
     rot_mat := get_block_transform(block)
-
-    // Transform all 8 corners of the base AABB through the rotation matrix
-    // and compute a new AABB that encloses all of them.
-    corners := [8]Vec3{
-        {base.min.x, base.min.y, base.min.z},
-        {base.max.x, base.min.y, base.min.z},
-        {base.min.x, base.max.y, base.min.z},
-        {base.max.x, base.max.y, base.min.z},
-        {base.min.x, base.min.y, base.max.z},
-        {base.max.x, base.min.y, base.max.z},
-        {base.min.x, base.max.y, base.max.z},
-        {base.max.x, base.max.y, base.max.z},
+    
+    animator := animator_init()
+    if block_infos[block.type].animate != .None {
+        block_animate_procs[block_infos[block.type].animate](block, &animator)
     }
+    
+    new_min := rl.Vector3{99999, 99999, 99999}
+    new_max := rl.Vector3{-99999, -99999, -99999}
+    has_parts := false
 
-    new_min := rl.Vector3Transform(corners[0], rot_mat)
-    new_max := new_min
-    for i in 1..<8 {
-        t := rl.Vector3Transform(corners[i], rot_mat)
-        new_min.x = min(new_min.x, t.x)
-        new_min.y = min(new_min.y, t.y)
-        new_min.z = min(new_min.z, t.z)
-        new_max.x = max(new_max.x, t.x)
-        new_max.y = max(new_max.y, t.y)
-        new_max.z = max(new_max.z, t.z)
+    for part in model_data.parts {
+        has_parts = true
+        part_trans := animator.transforms[part.group_id]
+        final_mat := rot_mat * part_trans
+        t_box := rotate_bbox(part.visual_bbox, final_mat)
+        
+        new_min.x = min(new_min.x, t_box.min.x)
+        new_min.y = min(new_min.y, t_box.min.y)
+        new_min.z = min(new_min.z, t_box.min.z)
+        new_max.x = max(new_max.x, t_box.max.x)
+        new_max.y = max(new_max.y, t_box.max.y)
+        new_max.z = max(new_max.z, t_box.max.z)
     }
+    
+    if !has_parts do return rl.BoundingBox{}
     return rl.BoundingBox{new_min, new_max}
 }
 
@@ -249,10 +263,24 @@ rotate_bbox :: proc(base: rl.BoundingBox, rot: rl.Matrix) -> rl.BoundingBox {
 get_block_bboxes :: proc(block: Block, buf: ^[8]rl.BoundingBox) -> []rl.BoundingBox {
     model_data := block_models[block.type]
     rot := get_block_transform(block)
-    for bbox, i in model_data.collision_bboxes {
-        buf[i] = rotate_bbox(bbox, rot)
+    
+    animator := animator_init()
+    if block_infos[block.type].animate != .None {
+        block_animate_procs[block_infos[block.type].animate](block, &animator)
     }
-    return buf[:len(model_data.collision_bboxes)]
+    
+    count := 0
+    for part in model_data.parts {
+        part_trans := animator.transforms[part.group_id]
+        final_mat := rot * part_trans
+        for bbox in part.collision_bboxes {
+            if count < len(buf) {
+                buf[count] = rotate_bbox(bbox, final_mat)
+                count += 1
+            }
+        }
+    }
+    return buf[:count]
 }
 
 //GAMEPLAY
@@ -268,6 +296,10 @@ Block_Data :: struct {
 }
 Block_Data_Uniqe :: struct #raw_union {
     redstone: Redstone,
+    piston: Piston_Data,
+}
+Piston_Data :: struct {
+    activation_time: f64,
 }
 Redstone :: struct {
     on: bool,
@@ -276,6 +308,21 @@ Redstone :: struct {
 }
 Wire :: struct {
     to: [3]i32
+}
+
+are_blocks_equal :: proc(a, b: Block) -> bool {
+    if a.type != b.type do return false
+    if a.data.direction != b.data.direction do return false
+    if a.data.facing != b.data.facing do return false
+    if a.data.has_wires != b.data.has_wires do return false
+    
+    #partial switch a.type {
+    case .Redstone:
+        return a.data.redstone == b.data.redstone
+    case .Piston:
+        return a.data.piston.activation_time == b.data.piston.activation_time
+    }
+    return true
 }
 
 //rework, should be in item.odin

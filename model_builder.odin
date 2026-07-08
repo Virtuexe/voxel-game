@@ -7,7 +7,7 @@ Block_Model_Builder :: struct {
     normals:   [MAX_TEXTURE_GROUPS * 6][dynamic][3]f32,
     texcoords: [MAX_TEXTURE_GROUPS * 6][dynamic][2]f32,
     indices:   [MAX_TEXTURE_GROUPS * 6][dynamic]u16,
-    collision_bboxes: [dynamic]rl.BoundingBox,
+    collision_bboxes: [MAX_TEXTURE_GROUPS][dynamic]rl.BoundingBox,
     center: Vec3,
 }
 
@@ -28,21 +28,26 @@ builder_destroy :: proc(b: ^Block_Model_Builder) {
         delete(b.texcoords[i])
         delete(b.indices[i])
     }
-    delete(b.collision_bboxes)
+    for i in 0..<MAX_TEXTURE_GROUPS {
+        delete(b.collision_bboxes[i])
+    }
 }
 
-builder_add_collision_box :: proc(b: ^Block_Model_Builder, min_p, max_p: [3]f32) {
-    append(&b.collision_bboxes, rl.BoundingBox{min_p, max_p})
+builder_add_collision_box :: proc(b: ^Block_Model_Builder, group: int, min_p, max_p: [3]f32) {
+    append(&b.collision_bboxes[group], rl.BoundingBox{min_p, max_p})
 }
 
 // Accurately calculates bounding box from only the generated vertices
 // (Fixes rl.GetModelBoundingBox returning origin {0,0,0} for empty meshes)
-builder_get_visual_bbox :: proc(b: ^Block_Model_Builder) -> rl.BoundingBox {
+builder_get_visual_bbox :: proc(b: ^Block_Model_Builder, group: int) -> rl.BoundingBox {
     has_verts := false
     min_p := [3]f32{99999, 99999, 99999}
     max_p := [3]f32{-99999, -99999, -99999}
     
-    for i in 0..<MAX_TEXTURE_GROUPS * 6 {
+    start_idx := group * 6
+    end_idx := start_idx + 6
+    
+    for i in start_idx..<end_idx {
         for p in b.positions[i] {
             has_verts = true
             min_p.x = min(min_p.x, p.x)
@@ -208,5 +213,5 @@ builder_add_box :: proc(b: ^Block_Model_Builder, min_p, max_p: [3]f32, excluded_
     if .South not_in excluded_faces  do builder_add_quad(b, .South,  {min_p.x, min_p.y, max_p.z}, {max_p.x, max_p.y, max_p.z}, group, uv_rotations[.South], uv_rects[.South])
     if .East not_in excluded_faces   do builder_add_quad(b, .East,   {max_p.x, min_p.y, min_p.z}, {max_p.x, max_p.y, max_p.z}, group, uv_rotations[.East], uv_rects[.East])
     if .West not_in excluded_faces   do builder_add_quad(b, .West,   {min_p.x, min_p.y, min_p.z}, {min_p.x, max_p.y, max_p.z}, group, uv_rotations[.West], uv_rects[.West])
-    builder_add_collision_box(b, min_p, max_p)
+    builder_add_collision_box(b, group, min_p, max_p)
 }

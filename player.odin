@@ -127,8 +127,9 @@ update_player :: proc(delta: f32) {
             bbox_buf: [8]rl.BoundingBox
             bboxes := get_block_bboxes(block, &bbox_buf)
             for model_bbox in bboxes {
-                b_min := block_pos + model_bbox.min
-                b_max := block_pos + model_bbox.max
+                offset := get_pending_move_offset(global_pos)
+                b_min := block_pos + model_bbox.min + offset
+                b_max := block_pos + model_bbox.max + offset
 
                 // Quick per-box overlap check
                 p_min := state.position - {state.collider_size.x/2, 0, state.collider_size.z/2}
@@ -269,9 +270,10 @@ is_player_supported :: proc(pos: Vec3) -> bool {
 }
 
 is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block) -> bool {
-    if block == {.Air, {}} do return false
+    if block.type == .Air do return false
     info := block_infos[block.type]
     if .NO_COLLISION in info.flags do return false
+    offset := get_pending_move_offset(block_pos)
     block_pos := to_vec3(block_pos)
 
     p_min := player - {state.collider_size.x/2, 0, state.collider_size.z/2}
@@ -280,8 +282,9 @@ is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block) -> bool {
     // Test against each sub-bbox (2 for stairs, 1 for everything else)
     bbox_buf: [8]rl.BoundingBox
     for model_bbox in get_block_bboxes(block, &bbox_buf) {
-        b_min := block_pos + model_bbox.min
-        b_max := block_pos + model_bbox.max
+
+        b_min := block_pos + model_bbox.min + offset
+        b_max := block_pos + model_bbox.max + offset
         if min(p_max.x,b_max.x)-max(p_min.x,b_min.x) > 0.001 &&
            min(p_max.y,b_max.y)-max(p_min.y,b_min.y) > 0.001 &&
            min(p_max.z,b_max.z)-max(p_min.z,b_min.z) > 0.001 {
@@ -313,7 +316,10 @@ raycast :: proc() {
             block_pos := to_vec3(global_pos)
             
             block := chunk.palette[block_key]
+            offset := get_pending_move_offset(global_pos)
             model_bbox := get_block_bbox(block)
+            model_bbox.min += offset
+            model_bbox.max += offset
             bbox := rl.BoundingBox{block_pos + model_bbox.min, block_pos + model_bbox.max}
 
             hit := rl.GetRayCollisionBox(ray, bbox)
@@ -391,7 +397,10 @@ draw_player_target_box :: proc() {
         pos := to_vec3(state.look_target)
         block := get_target_block()
         
+        offset := get_pending_move_offset(state.look_target)
         bbox := get_block_bbox(block)
+        bbox.min += offset
+        bbox.max += offset
         
         // Expand slightly to prevent Z-fighting with the block itself, accounting for line thickness
         t: f32 = 0.01

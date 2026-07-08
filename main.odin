@@ -95,7 +95,7 @@ main :: proc() {
     //RAYLIB
     rl.SetTraceLogLevel(.WARNING)
     rl.SetWindowState({.WINDOW_RESIZABLE})
-    rl.InitWindow(800, 500, "Game")
+    rl.InitWindow(1200, 800, "Game")
     rl.SetTargetFPS(120)
     rl.SetExitKey(rl.KeyboardKey.KEY_NULL)
 
@@ -116,7 +116,10 @@ main :: proc() {
         if data.model.meshCount > 0 {
             rl.UnloadModel(data.model)
         }
-        delete(data.collision_bboxes)
+        for part in data.parts {
+            delete(part.collision_bboxes)
+        }
+        delete(data.parts)
     }
     rl.CloseWindow()
 }
@@ -150,6 +153,7 @@ update :: proc(ustate: ^UI_State) {
 
     update_ui(ustate)
     update_code()
+    world_update_moves()
 }
 
 draw :: proc(ustate: ^UI_State) {

@@ -94,7 +94,7 @@ init_models :: proc() {
             facing = .Top
         case .Decal:
             builder_add_quad(&b, .Top, {0, 0.001, 0}, {1, 0.001, 1}, 0, tex_info.uv_rotations[0][.Top], tex_info.uv_rects[0][.Top])
-            builder_add_collision_box(&b, {0, 0, 0}, {1, 0.01, 1})
+            builder_add_collision_box(&b, 0, {0, 0, 0}, {1, 0.01, 1})
             builder_set_center(&b, {0.5, 0.0, 0.5})
         case .Stairs:
             builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {.Top}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
@@ -114,10 +114,22 @@ init_models :: proc() {
         }
         
         m := builder_build(&b, facing)
+        
+        parts: [dynamic]Block_Part
+        for i in 0..<MAX_TEXTURE_GROUPS {
+            if len(b.collision_bboxes[i]) > 0 || len(b.positions[i*6]) > 0 { // Check if group has collision or meshes
+                v_bbox := builder_get_visual_bbox(&b, i)
+                append(&parts, Block_Part{
+                    group_id = i,
+                    collision_bboxes = slice.clone(b.collision_bboxes[i][:]),
+                    visual_bbox = v_bbox,
+                })
+            }
+        }
+        
         block_models[type] = {
             model = m,
-            visual_bbox = builder_get_visual_bbox(&b),
-            collision_bboxes = slice.clone(b.collision_bboxes[:]),
+            parts = parts[:], // slice out of dynamic array
             center = b.center,
             base_facing = facing,
         }
@@ -223,7 +235,8 @@ draw_world_chunks :: proc() {
                     }
                 }
                 
-                mat_transform := rl.MatrixTranslate(p.x, p.y, p.z) * model_to_draw.transform
+                offset := get_pending_move_offset(global_pos)
+                mat_transform := rl.MatrixTranslate(p.x + offset.x, p.y + offset.y, p.z + offset.z) * model_to_draw.transform
                 for m_idx in 0..<model_to_draw.meshCount {
                     if model_to_draw.meshes[m_idx].vertexCount == 0 do continue
                     
@@ -234,7 +247,13 @@ draw_world_chunks :: proc() {
                     lock_uv: f32 = tex_info.lock_uv_y[group][face] ? 1.0 : 0.0
                     rl.SetShaderValue(block_shader, lock_uv_loc, &lock_uv, .FLOAT)
                     
-                    rl.DrawMesh(model_to_draw.meshes[m_idx], model_to_draw.materials[mat_idx], mat_transform)
+                    animator := animator_init()
+                    if block_infos[block.type].animate != .None {
+                        block_animate_procs[block_infos[block.type].animate](block, &animator)
+                    }
+                    mesh_transform := mat_transform * animator.transforms[group]
+                    
+                    rl.DrawMesh(model_to_draw.meshes[m_idx], model_to_draw.materials[mat_idx], mesh_transform)
                 }
 
                 //Wire
