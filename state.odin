@@ -35,6 +35,10 @@ Player_Interaction :: struct {
     place_dir: Cardinal,
     place_dir_normal: Vec3,
     place_dir_normal_2d: Vec2,
+
+    place_yaw_dir: Cardinal,
+    place_pitch_face: Block_Face,
+    place_half: Block_Face,
     
     held_item: Maybe(Item_Type),
     hotbar: [9]Maybe(Item_Type),

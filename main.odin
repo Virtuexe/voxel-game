@@ -5,31 +5,61 @@ import rl "vendor:raylib"
 
 get_block_transform :: proc(block: Block) -> rl.Matrix {
     info := block_infos[block.type]
-    rot_mat := rl.MatrixRotateX(0)
+    model_data := block_models[block.type]
+    rot_mat := rl.Matrix(1)
     
-    if .HAS_CARDINAL in info.flags {
-        angle: f32 = 0
-        switch block.data.direction {
-        case .North: angle = 0
-        case .East: angle = -rl.PI/2
-        case .South: angle = rl.PI
-        case .West: angle = rl.PI/2
+    // Helper to map Cardinal to Block_Face
+    cardinal_to_face :: proc(dir: Cardinal) -> Block_Face {
+        switch dir {
+        case .North: return .North
+        case .East:  return .East
+        case .South: return .South
+        case .West:  return .West
         }
-        if angle != 0 do rot_mat = rl.MatrixRotateY(angle) * rot_mat
+        return .North
     }
     
-    if .HAS_BLOCK_FACE in info.flags {
-        angle: f32 = 0
-        axis := Vec3{1,0,0}
-        switch block.data.facing {
-        case .Bottom: angle = 0; axis = {1,0,0}
-        case .Top: angle = rl.PI; axis = {1,0,0}
-        case .South: angle = -rl.PI/2; axis = {1,0,0}
-        case .North: angle = rl.PI/2; axis = {1,0,0}
-        case .East: angle = rl.PI/2; axis = {0,0,1}
-        case .West: angle = -rl.PI/2; axis = {0,0,1}
+    // Direct rotations to/from North
+    get_rot_to_north :: proc(f: Block_Face) -> rl.Matrix {
+        switch f {
+        case .North: return rl.Matrix(1)
+        case .South: return rl.MatrixRotateY(rl.PI)
+        case .East:  return rl.MatrixRotateY(rl.PI/2)
+        case .West:  return rl.MatrixRotateY(-rl.PI/2)
+        case .Top:   return rl.MatrixRotateX(-rl.PI/2)
+        case .Bottom:return rl.MatrixRotateX(rl.PI/2)
         }
-        if angle != 0 do rot_mat = rl.MatrixRotate(axis, angle) * rot_mat
+        return rl.Matrix(1)
+    }
+
+    get_rot_from_north :: proc(f: Block_Face) -> rl.Matrix {
+        switch f {
+        case .North: return rl.Matrix(1)
+        case .South: return rl.MatrixRotateY(rl.PI)
+        case .East:  return rl.MatrixRotateY(-rl.PI/2)
+        case .West:  return rl.MatrixRotateY(rl.PI/2)
+        case .Top:   return rl.MatrixRotateX(rl.PI/2)
+        case .Bottom:return rl.MatrixRotateX(-rl.PI/2)
+        }
+        return rl.Matrix(1)
+    }
+    
+    if .HAS_CARDINAL in info.flags && .HAS_BLOCK_FACE in info.flags {
+        // Stairs
+        target_face := cardinal_to_face(block.data.direction)
+        
+        if block.data.facing == .Top {
+            rot_mat = get_rot_from_north(target_face) * rl.MatrixRotateZ(rl.PI) * get_rot_to_north(model_data.base_facing)
+        } else {
+            rot_mat = get_rot_from_north(target_face) * get_rot_to_north(model_data.base_facing)
+        }
+    } else if .HAS_BLOCK_FACE in info.flags {
+        // 6-way block (Piston)
+        rot_mat = get_rot_from_north(block.data.facing) * get_rot_to_north(model_data.base_facing)
+    } else if .HAS_CARDINAL in info.flags {
+        // 4-way block
+        target_face := cardinal_to_face(block.data.direction)
+        rot_mat = get_rot_from_north(target_face) * get_rot_to_north(model_data.base_facing)
     }
     
     if rot_mat != rl.Matrix(1) {

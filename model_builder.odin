@@ -59,7 +59,7 @@ builder_get_visual_bbox :: proc(b: ^Block_Model_Builder) -> rl.BoundingBox {
 }
 
 // Builds and uploads a multi-material model (one mesh per face material).
-builder_build :: proc(b: ^Block_Model_Builder) -> rl.Model {
+builder_build :: proc(b: ^Block_Model_Builder, facing := Block_Face.North) -> rl.Model {
     model: rl.Model
     model.transform = rl.Matrix(1)
     

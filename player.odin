@@ -314,6 +314,49 @@ raycast :: proc() {
         state.place_dir_normal = face_normal
         state.place_dir_normal_2d = ignore_normal(normal, face_normal)
         state.place_dir = normal_to_direction(state.place_dir_normal_2d)
+        
+        // 4-Way Rotation (Yaw)
+        yaw_deg := math.mod_f32(state.yaw, 360)
+        if yaw_deg < 0 do yaw_deg += 360
+        
+        if yaw_deg >= 45 && yaw_deg < 135 {
+            state.place_yaw_dir = .North // Player faces South, Block faces North
+        } else if yaw_deg >= 135 && yaw_deg < 225 {
+            state.place_yaw_dir = .East // Player faces West, Block faces East
+        } else if yaw_deg >= 225 && yaw_deg < 315 {
+            state.place_yaw_dir = .South // Player faces North, Block faces South
+        } else {
+            state.place_yaw_dir = .West // Player faces East, Block faces West
+        }
+
+        // 6-Way Rotation (Pitch)
+        if state.pitch < -45 {
+            state.place_pitch_face = .Top // Looking down, block faces up towards player
+        } else if state.pitch > 45 {
+            state.place_pitch_face = .Bottom // Looking up, block faces down towards player
+        } else {
+            // Fallback to 4-Way
+            switch state.place_yaw_dir {
+            case .North: state.place_pitch_face = .North
+            case .South: state.place_pitch_face = .South
+            case .East: state.place_pitch_face = .East
+            case .West: state.place_pitch_face = .West
+            }
+        }
+
+        // Raycast Hit (Half)
+        if state.hit_face == .Bottom {
+            state.place_half = .Bottom // Clicked top of a block, right-side up
+        } else if state.hit_face == .Top {
+            state.place_half = .Top // Clicked bottom of a block, upside down
+        } else {
+            y_rem := closest_hit.point.y - math.floor(closest_hit.point.y)
+            if y_rem > 0.5 {
+                state.place_half = .Top
+            } else {
+                state.place_half = .Bottom
+            }
+        }
     }
 }
 

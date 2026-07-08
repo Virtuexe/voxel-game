@@ -17,6 +17,7 @@ set_face_uvs :: proc(c: [^]f32, face_idx: int, uv_data: [8]f32) {
 
 white_texture: rl.Texture2D
 block_shader: rl.Shader
+lock_uv_loc: i32
 
 init_shaders :: proc() {
     vs := `
@@ -28,12 +29,14 @@ init_shaders :: proc() {
     out vec2 fragTexCoord;
     out vec4 fragColor;
     out vec3 fragNormal;
+    out vec3 fragWorldPos;
     uniform mat4 mvp;
     uniform mat4 matModel;
     void main() {
         fragTexCoord = vertexTexCoord;
         fragColor = vertexColor;
         fragNormal = normalize(vec3(matModel * vec4(vertexNormal, 0.0)));
+        fragWorldPos = vec3(matModel * vec4(vertexPosition, 1.0));
         gl_Position = mvp * vec4(vertexPosition, 1.0);
     }`
     fs := `
@@ -41,11 +44,17 @@ init_shaders :: proc() {
     in vec2 fragTexCoord;
     in vec4 fragColor;
     in vec3 fragNormal;
+    in vec3 fragWorldPos;
     out vec4 finalColor;
     uniform sampler2D texture0;
     uniform vec4 colDiffuse;
+    uniform float lockUV;
     void main() {
-        vec4 texelColor = texture(texture0, fragTexCoord);
+        vec2 uv = fragTexCoord;
+        if (lockUV > 0.5 && abs(fragNormal.y) > 0.5) {
+            uv = fragWorldPos.xz;
+        }
+        vec4 texelColor = texture(texture0, uv);
         if (texelColor.a == 0.0) discard;
         
         float light = 1.0;
@@ -60,6 +69,7 @@ init_shaders :: proc() {
     
     // We can directly cast Odin raw string literals to cstring for raylib
     block_shader = rl.LoadShaderFromMemory(cstring(raw_data(vs)), cstring(raw_data(fs)))
+    lock_uv_loc = rl.GetShaderLocation(block_shader, "lockUV")
 }
 
 init_models :: proc() {
@@ -71,37 +81,42 @@ init_models :: proc() {
         if type == .Air do continue
         
         info := block_infos[type]
+        tex_info := block_textures[type]
         b := builder_init()
+        facing := Block_Face.North
         
         switch info.model {
         case .Cube:
-            builder_add_box(&b, {0, 0, 0}, {1, 1, 1}, {}, 0, info.uv_rotations[0], info.uv_rects[0])
+            builder_add_box(&b, {0, 0, 0}, {1, 1, 1}, {}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
         case .Slab:
-            builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {}, 0, info.uv_rotations[0], info.uv_rects[0])
+            builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
             builder_set_center(&b, {0.5, 0.25, 0.5})
+            facing = .Top
         case .Decal:
-            builder_add_quad(&b, .Top, {0, 0.001, 0}, {1, 0.001, 1}, 0, info.uv_rotations[0][.Top], info.uv_rects[0][.Top])
+            builder_add_quad(&b, .Top, {0, 0.001, 0}, {1, 0.001, 1}, 0, tex_info.uv_rotations[0][.Top], tex_info.uv_rects[0][.Top])
             builder_add_collision_box(&b, {0, 0, 0}, {1, 0.01, 1})
             builder_set_center(&b, {0.5, 0.0, 0.5})
         case .Stairs:
-            builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {.Top}, 0, info.uv_rotations[0], info.uv_rects[0])
-            builder_add_quad(&b, .Top, {0, 0.5, 0.5}, {1, 0.5, 1}, 0, info.uv_rotations[0][.Top], info.uv_rects[0][.Top])
-            builder_add_box(&b, {0, 0.5, 0}, {1, 1, 0.5}, {.Bottom}, 0, info.uv_rotations[0], info.uv_rects[0])
+            builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {.Top}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+            builder_add_quad(&b, .Top, {0, 0.5, 0}, {1, 0.5, 0.5}, 0, tex_info.uv_rotations[0][.Top], tex_info.uv_rects[0][.Top])
+            builder_add_box(&b, {0, 0.5, 0.5}, {1, 1, 1}, {.Bottom}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
         case .Piston:
-            builder_add_box(&b, {0, 0, 0}, {1, 0.75, 1}, {}, 0, info.uv_rotations[0], info.uv_rects[0])
+            builder_add_box(&b, {0, 0, 0}, {1, 0.75, 1}, {}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
             //arm
-            builder_add_box(&b, {0.375, 0, 0.375}, {0.625, 0.75, 0.625}, {.Bottom, .Top}, 1, info.uv_rotations[1], info.uv_rects[1])
+            builder_add_box(&b, {0.375, 0, 0.375}, {0.625, 0.75, 0.625}, {.Bottom, .Top}, 1, tex_info.uv_rotations[1], tex_info.uv_rects[1])
             //head
-            builder_add_box(&b, {0, 0.75, 0}, {1, 1, 1}, {}, 2, info.uv_rotations[2], info.uv_rects[2])
+            builder_add_box(&b, {0, 0.75, 0}, {1, 1, 1}, {}, 2, tex_info.uv_rotations[2], tex_info.uv_rects[2])
             builder_set_center(&b, {0.5, 0.5, 0.5})
+            facing = .Top
         }
         
-        m := builder_build(&b)
+        m := builder_build(&b, facing)
         block_models[type] = {
             model = m,
             visual_bbox = builder_get_visual_bbox(&b),
             collision_bboxes = slice.clone(b.collision_bboxes[:]),
             center = b.center,
+            base_facing = facing,
         }
         
         builder_destroy(&b)
@@ -173,6 +188,8 @@ draw_world_chunks :: proc() {
                 if block_key == 0 do continue
                 block := chunk.palette[block_key]
                 info := block_infos[block.type]
+                tex_info := block_textures[block.type]
+                
                 if do_transparent != (.TEXTURE_TRANSPARENT in info.flags) do continue
 
                 l_pos := unflatten(i)
@@ -190,13 +207,25 @@ draw_world_chunks :: proc() {
                     for i in 0..<MAX_TEXTURE_GROUPS * 6 {
                         group := i / 6
                         face := Block_Face(i % 6)
-                        t := textures[info.textures[group][face]]
+                        t := textures[tex_info.textures[group][face]]
                         // We only have active meshes mapped properly if their material matches
                         rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, t)
                     }
                 }
                 
-                rl.DrawModel(model_to_draw, p, 1, rl.WHITE)
+                mat_transform := rl.MatrixTranslate(p.x, p.y, p.z) * model_to_draw.transform
+                for m_idx in 0..<model_to_draw.meshCount {
+                    if model_to_draw.meshes[m_idx].vertexCount == 0 do continue
+                    
+                    mat_idx := model_to_draw.meshMaterial[m_idx]
+                    group := int(mat_idx) / 6
+                    face := Block_Face(int(mat_idx) % 6)
+                    
+                    lock_uv: f32 = tex_info.lock_uv_y[group][face] ? 1.0 : 0.0
+                    rl.SetShaderValue(block_shader, lock_uv_loc, &lock_uv, .FLOAT)
+                    
+                    rl.DrawMesh(model_to_draw.meshes[m_idx], model_to_draw.materials[mat_idx], mat_transform)
+                }
 
                 //Arrow
                 if arrow, ok := block.data.arrow.(Arrow); ok {
