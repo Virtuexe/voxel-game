@@ -83,7 +83,7 @@ center: [2]f32
 
 CHUNK :: [3]i32{16, 16, 16}
 
-arrow_texture: rl.Texture2D
+wire_model_texture: rl.Texture2D
 crosshair_texture: rl.Texture2D
 // State structs moved to state.odin
 
@@ -124,7 +124,7 @@ main :: proc() {
 init :: proc(ustate: ^UI_State) {
     calc_window()
 
-    arrow_texture = rl.LoadTexture("assets/arrow.png")
+    wire_model_texture = rl.LoadTexture("assets/arrow.png")
     crosshair_texture = rl.LoadTexture("assets/crosshair.png")
     init_textures()
     init_shaders()

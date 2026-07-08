@@ -2,6 +2,7 @@ package voxel_game
 
 World_State :: struct {
     chunks: map[[3]i32]^Chunk,
+    wires: map[[3]i32][dynamic]Wire,
 }
 Chunk :: struct {
     palette: [dynamic]Block,
@@ -10,6 +11,7 @@ Chunk :: struct {
 
 world_init :: proc() {
     state.world.chunks = make(map[[3]i32]^Chunk)
+    state.world.wires = make(map[[3]i32][dynamic]Wire)
     
     for x in -8..<8 {
         for z in -8..<8 {
@@ -82,6 +84,11 @@ world_get_block :: proc(pos: [3]i32) -> Block {
 }
 
 world_set_block :: proc(pos: [3]i32, block: Block) {
+    if !block.data.has_wires && pos in state.world.wires {
+        delete(state.world.wires[pos])
+        delete_key(&state.world.wires, pos)
+    }
+    
     c_pos := get_chunk_pos(pos)
     if c_pos not_in state.world.chunks {
         chunk := new(Chunk)

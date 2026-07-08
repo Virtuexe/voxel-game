@@ -5,14 +5,14 @@ import ui "raylib-ui"
 Item_Type :: enum {
     Dirt, Stone, Cobblestone, Glass, Planks,
     Redstone, Slab, Stairs, Piston,
-    Wire
+    Wire, Button,
 }
 
 Item_Info :: struct {
     block: Maybe(Block_Type),
     name: string,
     texture: Texture_Type,
-    on_right_click: proc(),
+    on_right_click: Maybe(proc()),
 }
 items := [Item_Type]Item_Info{
     .Dirt = {
@@ -73,5 +73,11 @@ items := [Item_Type]Item_Info{
         name = "Wire",
         texture = .Wire,
         on_right_click = wire_use,
+    },
+    .Button = {
+        block = .Button,
+        name = "Button",
+        texture = .Stone,
+        on_right_click = block_place,
     }
 }

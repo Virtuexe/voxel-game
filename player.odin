@@ -189,7 +189,7 @@ update_player :: proc(delta: f32) {
         if rl.IsMouseButtonPressed(.RIGHT) && state.looking_at_block {
             if state.held_item != nil {
                 item := items[state.held_item.?]
-                if item.on_right_click != nil do item.on_right_click()
+                if item.on_right_click != nil do item.on_right_click.?()
             }
         }
     }

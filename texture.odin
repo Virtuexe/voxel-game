@@ -109,4 +109,7 @@ init_block_textures :: proc() {
     block_textures[.Piston].textures[2] = fill_textures(.Piston_Side)
     block_textures[.Piston].textures[2][.Top] = .Piston_Top
     block_textures[.Piston].textures[2][.Bottom] = .Piston_Top
+
+    block_textures[.Button].textures[0] = fill_textures(.Stone)
+    block_textures[.Button].lock_uv_y[0] = fill_lock_uv_y(true)
 }

@@ -108,6 +108,9 @@ init_models :: proc() {
             builder_add_box(&b, {0, 0.75, 0}, {1, 1, 1}, {}, 2, tex_info.uv_rotations[2], tex_info.uv_rects[2])
             builder_set_center(&b, {0.5, 0.5, 0.5})
             facing = .Top
+        case .Button:
+            builder_add_box(&b, {0.3, 0.4, 0.9}, {0.7, 0.6, 1}, {.South})
+            builder_set_center(&b, {0.5, 0.5, 1})
         }
         
         m := builder_build(&b, facing)
@@ -227,49 +230,53 @@ draw_world_chunks :: proc() {
                     rl.DrawMesh(model_to_draw.meshes[m_idx], model_to_draw.materials[mat_idx], mat_transform)
                 }
 
-                //Arrow
-                if arrow, ok := block.data.arrow.(Arrow); ok {
-                    from_center := p + get_block_center(block)
-                    target_block := world_get_block(arrow.to)
-                    to_center   := to_vec3(arrow.to) + get_block_center(target_block)
-                    diff        := to_center - from_center
-                    total_dist  := linalg.length(diff)
-                    if total_dist > 0.001 {
-                        dir       := diff / total_dist
-                        tile_size : f32 = 0.5
-                        num_tiles := int(total_dist / tile_size)
-                        step      := total_dist / f32(max(num_tiles, 1))
-                        half      := tile_size * 0.5
-                        // Pick a reference vector not parallel to dir to build stable quad axes
-                        ref       := Vec3{0, 1, 0} if abs(dir.y) < 0.99 else Vec3{0, 0, 1}
-                        right     := linalg.normalize(linalg.cross(dir, ref))
-                        up        := linalg.normalize(linalg.cross(right, dir))
-
-                        rlgl.DisableBackfaceCulling()
-                        rlgl.SetTexture(arrow_texture.id)
-                        rlgl.Begin(rlgl.QUADS)
-                        rlgl.Color4ub(255, 255, 255, 255)
-                        for t in 0..=num_tiles {
-                            c := from_center + dir * (f32(t) * step + step * 0.5)
-                            // Quad corners: U axis = dir, V axis = up (perpendicular to dir)
-                            bl := c - dir*half - up*half
-                            br := c + dir*half - up*half
-                            tr := c + dir*half + up*half
-                            tl := c - dir*half + up*half
-                            // Front face
-                            rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
-                            rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
-                            rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
-                            rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
-                            // Back face (mirrored U so texture reads correctly from behind)
-                            rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
-                            rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
-                            rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
-                            rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
+                //Wire
+                if block.data.has_wires {
+                    if wires, ok := state.world.wires[global_pos]; ok {
+                        for wire in wires {
+                            from_center := p + get_block_center(block)
+                            target_block := world_get_block(wire.to)
+                            to_center   := to_vec3(wire.to) + get_block_center(target_block)
+                            diff        := to_center - from_center
+                            total_dist  := linalg.length(diff)
+                            if total_dist > 0.001 {
+                                dir       := diff / total_dist
+                                tile_size : f32 = 0.5
+                                num_tiles := int(total_dist / tile_size)
+                                step      := total_dist / f32(max(num_tiles, 1))
+                                half      := tile_size * 0.5
+                                // Pick a reference vector not parallel to dir to build stable quad axes
+                                ref       := Vec3{0, 1, 0} if abs(dir.y) < 0.99 else Vec3{0, 0, 1}
+                                right     := linalg.normalize(linalg.cross(dir, ref))
+                                up        := linalg.normalize(linalg.cross(right, dir))
+        
+                                rlgl.DisableBackfaceCulling()
+                                rlgl.SetTexture(wire_model_texture.id)
+                                rlgl.Begin(rlgl.QUADS)
+                                rlgl.Color4ub(255, 255, 255, 255)
+                                for t in 0..=num_tiles {
+                                    c := from_center + dir * (f32(t) * step + step * 0.5)
+                                    // Quad corners: U axis = dir, V axis = up (perpendicular to dir)
+                                    bl := c - dir*half - up*half
+                                    br := c + dir*half - up*half
+                                    tr := c + dir*half + up*half
+                                    tl := c - dir*half + up*half
+                                    // Front face
+                                    rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
+                                    rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
+                                    rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
+                                    rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
+                                    // Back face (mirrored U so texture reads correctly from behind)
+                                    rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
+                                    rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
+                                    rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
+                                    rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
+                                }
+                                rlgl.End()
+                                rlgl.SetTexture(0)
+                                rlgl.EnableBackfaceCulling()
+                            }
                         }
-                        rlgl.End()
-                        rlgl.SetTexture(0)
-                        rlgl.EnableBackfaceCulling()
                     }
                 }
             }

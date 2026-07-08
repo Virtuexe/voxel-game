@@ -15,7 +15,7 @@ redstone_render_texture: [(1<<len(Cardinal))*2]rl.RenderTexture2D
 
 Block_Type :: enum {
     Air, Dirt, Stone, Cobblestone, Glass, Planks,
-    Redstone, Slab, Stairs, Piston
+    Redstone, Slab, Stairs, Piston, Button,
 }
 
 Block_Info :: struct {
@@ -31,9 +31,11 @@ Block_Flag :: enum {
     NO_COLLISION,
     HAS_CARDINAL,
     HAS_BLOCK_FACE,
+    WIRE_INPUT,
+    WIRE_OUTPUT,
 }
 
-Block_Model :: enum {Cube, Slab, Decal, Stairs, Piston}
+Block_Model :: enum {Cube, Slab, Decal, Stairs, Piston, Button}
 block_infos := [Block_Type]Block_Info {
     .Air = {
         flags = {},
@@ -54,7 +56,7 @@ block_infos := [Block_Type]Block_Info {
         model = .Cube,
     },
     .Glass = {
-        flags = {.TEXTURE_TRANSPARENT},
+        flags = {.TEXTURE_TRANSPARENT, .WIRE_INPUT, .WIRE_OUTPUT},
         item = .Glass,
         model = .Cube,
     },
@@ -79,9 +81,14 @@ block_infos := [Block_Type]Block_Info {
         model = .Stairs,
     },
     .Piston = {
-        flags = {.HAS_BLOCK_FACE},
+        flags = {.HAS_BLOCK_FACE, .WIRE_OUTPUT},
         item = .Piston,
         model = .Piston,
+    },
+    .Button = {
+        flags = {.HAS_BLOCK_FACE, .WIRE_INPUT},
+        item = .Button,
+        model = .Button,
     }
 }
 
@@ -196,7 +203,7 @@ Block :: struct {
 Block_Data :: struct {
     direction: Cardinal,
     facing: Block_Face,
-    arrow: Maybe(Arrow),
+    has_wires: bool,
     using uniqe: Block_Data_Uniqe,
 }
 Block_Data_Uniqe :: struct #raw_union {
@@ -207,20 +214,59 @@ Redstone :: struct {
     rotation: Block_Face,
     connections: [Cardinal]bool,
 }
-Arrow :: struct {
+Wire :: struct {
     to: [3]i32
 }
 
 wire_use :: proc() {
     if !state.looking_at_block do return
     if pos, ok := state.select_block_pos.([3]i32); ok {
-        block := world_get_block(pos)
-        block.data.arrow = Arrow{state.look_target}
-        world_set_block(pos, block)
+        source_block := world_get_block(pos)
+        target_block := world_get_block(state.look_target)
+        
+        source_info := block_infos[source_block.type]
+        target_info := block_infos[target_block.type]
+        
+        if !(.WIRE_INPUT in source_info.flags) || !(.WIRE_OUTPUT in target_info.flags) {
+            state.select_block_pos = nil
+            return
+        }
+        
+        if pos not_in state.world.wires {
+            state.world.wires[pos] = make([dynamic]Wire)
+        }
+        
+        target_wire := Wire{state.look_target}
+        found_idx := -1
+        for a, i in state.world.wires[pos] {
+            if a == target_wire {
+                found_idx = i
+                break
+            }
+        }
+        
+        if found_idx >= 0 {
+            unordered_remove(&state.world.wires[pos], found_idx)
+            if len(state.world.wires[pos]) == 0 {
+                source_block.data.has_wires = false
+                world_set_block(pos, source_block)
+            }
+        } else {
+            append(&state.world.wires[pos], target_wire)
+            if !source_block.data.has_wires {
+                source_block.data.has_wires = true
+                world_set_block(pos, source_block)
+            }
+        }
+        
         state.select_block_pos = nil
     }
     else {
-        state.select_block_pos = state.look_target
+        target_block := world_get_block(state.look_target)
+        target_info := block_infos[target_block.type]
+        if .WIRE_INPUT in target_info.flags {
+            state.select_block_pos = state.look_target
+        }
     }
 }
 
