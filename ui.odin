@@ -23,7 +23,7 @@ UI_State :: struct {
     player_storage_items: [STORAGE_SLOTS]ui.Rec,
     player_storage_padding_boxes: [STORAGE_SLOTS]ui.Rec,
 
-    hovered_item: Maybe(Item_Type),
+    hovered_item: Maybe(Item),
     hovered_rec: ui.Rec,
 
     target_storage: ui.Rec,

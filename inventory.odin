@@ -4,25 +4,25 @@ import rl "vendor:raylib"
 
 init_hotbar :: proc() {
     state.hotbar = {
-        .Dirt,
-        .Stone,
-        .Glass,
-        .Planks,
-        .Stairs,
-        .Piston,
-        .Button,
-        .Wire,
-        .Torch,
+        Item{type = .Dirt},
+        Item{type = .Stone},
+        Item{type = .Glass},
+        Item{type = .Planks},
+        Item{type = .Stairs},
+        Item{type = .Piston},
+        Item{type = .Button},
+        Item{type = .Wire},
+        Item{type = .Torch},
     }
     state.held_item = state.hotbar[0]
 }
 
 init_inventory :: proc() {
     init_hotbar()
-    state.player_storage[0] = .Dirt
-    state.player_storage[1] = .Glass
-    state.player_storage[2] = .Cobblestone
-    state.player_storage[3] = .Slab
+    state.player_storage[0] = Item{type = .Dirt}
+    state.player_storage[1] = Item{type = .Glass}
+    state.player_storage[2] = Item{type = .Cobblestone}
+    state.player_storage[3] = Item{type = .Slab}
 }
 
 update_inventory :: proc(ustate: ^UI_State) {
@@ -107,7 +107,7 @@ draw_inventory :: proc(ustate: ^UI_State) {
             mouse_pos := ui.get_mouse_pos_local(state.ui_cam)
             rec := ui.Rec{ size = ustate.item_size }
             ui.align(&rec, ui.Rec{pos = mouse_pos, size = {0,0}}, .Center)
-            draw_item(rec, textures[items[state.cursor.?].texture])
+            draw_item(rec, textures[items[state.cursor.?.type].texture])
         }
         
         draw_tooltip(ustate)
@@ -121,7 +121,7 @@ draw_tooltip :: proc(ustate: ^UI_State) {
     if state.cursor != nil do return
     
     item := ustate.hovered_item.?
-    name := fmt.tprintf("%v", item)
+    name := fmt.tprintf("%v", item.type)
     
     style := ui.make_text_style(ustate.item_size.y * 0.4)
     text_size := ui.measure_text_size(name, style)
@@ -185,7 +185,7 @@ draw_hotbar :: proc(ustate: ^UI_State) {
         
         item := state.hotbar[i]
         if item != nil {
-            draw_item(rec, textures[items[item.?].texture])
+            draw_item(rec, textures[items[item.?.type].texture])
         }
     }
 }
@@ -248,12 +248,12 @@ draw_storages :: proc(ustate: ^UI_State) {
     for i in 0..<STORAGE_SLOTS {
         ui.draw_rec_lines(ustate.target_storage_padding_boxes[i], ustate.padding.x, ui.Color{0, 0, 0, 100})
         if item := state.target_storage[i]; item != nil {
-            draw_item(ustate.target_storage_items[i], textures[items[item.?].texture])
+            draw_item(ustate.target_storage_items[i], textures[items[item.?.type].texture])
         }
         
         ui.draw_rec_lines(ustate.player_storage_padding_boxes[i], ustate.padding.x, ui.Color{0, 0, 0, 100})
         if item := state.player_storage[i]; item != nil {
-            draw_item(ustate.player_storage_items[i], textures[items[item.?].texture])
+            draw_item(ustate.player_storage_items[i], textures[items[item.?.type].texture])
         }
     }
 }

@@ -135,7 +135,7 @@ get_redstone_texture :: proc(on: bool, connections: [Cardinal]bool) -> rl.Render
 draw_world_chunks :: proc() {
     show_wires := false
     if state.held_item != nil {
-        if .WIRES_VISIBLE in items[state.held_item.?].flags {
+        if .WIRES_VISIBLE in items[state.held_item.?.type].flags {
             show_wires = true
         }
     }

@@ -44,14 +44,19 @@ block_actions := [Block_Action]Block_Action_Proc {
 
 
 
+Call_Action :: struct {
+    type: Block_Action,
+    data: Action_Data,
+}
+
 Block_Info :: struct {
     flags: bit_set[Block_Flag],
     item: Maybe(Item_Type),
     model: Block_Model,
     texture: Block_Texture,
-    on_right_click: Block_Action,
-    on_activate: Block_Action,
-    on_deactivate: Block_Action,
+    on_right_click: Call_Action,
+    on_activate: Call_Action,
+    on_deactivate: Call_Action,
 }
 Block_Flag :: enum {
     TEXTURE_TRANSPARENT,
@@ -86,7 +91,7 @@ block_infos := [Block_Type]Block_Info {
         flags = {.TEXTURE_TRANSPARENT, .WIRE_INPUT, .WIRE_OUTPUT},
         item = .Glass,
         model = .Cube,
-        on_activate = .Activate_Wired_Blocks
+        on_activate = {.Activate_Wired_Blocks, {}}
     },
     .Planks = {
         flags = {},
@@ -112,20 +117,20 @@ block_infos := [Block_Type]Block_Info {
         flags = {.HAS_BLOCK_FACE, .WIRE_OUTPUT},
         item = .Piston,
         model = .Piston,
-        on_activate = .Piston_Activate,
+        on_activate = {.Piston_Activate, {}},
     },
     .Button = {
         flags = {.HAS_BLOCK_FACE, .NO_COLLISION, .WIRE_INPUT, .STATEFUL},
         item = .Button,
         model = .Button,
-        on_right_click = .Button_Activate
+        on_right_click = {.Button_Activate, {}}
     },
     .Torch = {
         flags = {.NO_COLLISION, .STATEFUL, .TEXTURE_TRANSPARENT, .WIRE_INPUT, .WIRE_OUTPUT},
         item = .Torch,
         model = .Torch,
-        on_activate = .Torch_Turn_Off,
-        on_deactivate = .Torch_Turn_On,
+        on_activate = {.Torch_Turn_Off, {}},
+        on_deactivate = {.Torch_Turn_On, {}},
     }
 }
 
@@ -147,8 +152,8 @@ activate_wired_blocks :: proc(pos: Vec3I, data: Action_Data) {
             target_pos := wire.to
             target_block := world_get_block(target_pos)
             info := block_infos[target_block.type]
-            if info.on_activate != .None {
-                block_actions[info.on_activate](target_pos, {})
+            if info.on_activate.type != .None {
+                block_actions[info.on_activate.type](target_pos, info.on_activate.data)
             }
         }
     }
@@ -163,8 +168,8 @@ deactivate_wired_blocks :: proc(pos: Vec3I, data: Action_Data) {
             target_pos := wire.to
             target_block := world_get_block(target_pos)
             info := block_infos[target_block.type]
-            if info.on_deactivate != .None {
-                block_actions[info.on_deactivate](target_pos, {})
+            if info.on_deactivate.type != .None {
+                block_actions[info.on_deactivate.type](target_pos, info.on_deactivate.data)
             }
         }
     }

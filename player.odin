@@ -198,19 +198,33 @@ update_player :: proc(delta: f32) {
             state.held_item = state.hotbar[state.hotbar_index]
         }
 
-        if is_pressed(.Attack) && state.looking_at_block {
-            set_target_block(Block{.Air, {}})
-            raycast()
+        if is_pressed(.Attack) {
+            handled_by_item := false
+            if state.held_item != nil {
+                item_info := items[state.held_item.?.type]
+                if item_info.on_left_click != .None {
+                    item_p := &state.hotbar[state.hotbar_index].?
+                    item_actions[item_info.on_left_click](item_p)
+                    state.held_item = item_p^
+                    handled_by_item = true
+                }
+            }
+            if !handled_by_item && state.looking_at_block {
+                set_target_block(Block{.Air, {}})
+                raycast()
+            }
         }
         if is_pressed(.Use) && state.looking_at_block {
             target_block := world_get_block(state.look_target)
             block_info := block_infos[target_block.type]
             
-            if state.held_item != nil && items[state.held_item.?].on_right_click != .None {
-                item := items[state.held_item.?]
-                item_actions[item.on_right_click]()
-            } else if block_info.on_right_click != .None {
-                block_actions[block_info.on_right_click](state.look_target, {})
+            if state.held_item != nil && items[state.held_item.?.type].on_right_click != .None {
+                item_info := items[state.held_item.?.type]
+                item_p := &state.hotbar[state.hotbar_index].?
+                item_actions[item_info.on_right_click](item_p)
+                state.held_item = item_p^
+            } else if block_info.on_right_click.type != .None {
+                block_actions[block_info.on_right_click.type](state.look_target, block_info.on_right_click.data)
             }
         }
     }
@@ -401,6 +415,33 @@ draw_player_target_box :: proc() {
         bbox.max += pos + epsilon
         
         draw_bounding_box_thick(bbox, t, rl.Color{0, 0, 0, 150})
+    }
+    
+    if state.held_item != nil {
+        if pos, ok := state.held_item.?.data.selected_block.?; ok {
+            block := world_get_block(pos)
+            bbox := get_block_bbox(block, pos)
+            
+            t: f32 = 0.01
+            epsilon: f32 = 0
+            bbox.min += to_vec3(pos) - epsilon
+            bbox.max += to_vec3(pos) + epsilon
+            
+            draw_bounding_box_thick(bbox, t, rl.WHITE)
+            
+            if wires, ok := state.world.wires[pos]; ok {
+                for wire in wires {
+                    c_pos := wire.to
+                    c_block := world_get_block(c_pos)
+                    c_bbox := get_block_bbox(c_block, c_pos)
+                    
+                    c_bbox.min += to_vec3(c_pos) - epsilon
+                    c_bbox.max += to_vec3(c_pos) + epsilon
+                    
+                    draw_bounding_box_thick(c_bbox, t, rl.RED)
+                }
+            }
+        }
     }
     if state.show_debug {
         draw_xyz()

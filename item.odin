@@ -8,6 +8,15 @@ Item_Type :: enum {
     Wire, Button, Torch
 }
 
+Item_Data :: struct {
+    selected_block: Maybe(Vec3I),
+}
+
+Item :: struct {
+    type: Item_Type,
+    data: Item_Data,
+}
+
 Item_Flag :: enum {
     WIRES_VISIBLE,
 }
@@ -15,14 +24,16 @@ Item_Flag :: enum {
 Item_Action :: enum {
     None,
     Block_Place,
-    Wire_Item_Use,
+    Wire_Item_Right_Click,
+    Wire_Item_Left_Click,
 }
-Item_Action_Proc :: proc()
+Item_Action_Proc :: proc(item: ^Item)
 
 item_actions := [Item_Action]Item_Action_Proc {
     .None = nil,
     .Block_Place = block_place,
-    .Wire_Item_Use = wire_item_use,
+    .Wire_Item_Right_Click = wire_item_right_click,
+    .Wire_Item_Left_Click = wire_item_left_click,
 }
 
 Item_Info :: struct {
@@ -31,6 +42,7 @@ Item_Info :: struct {
     name: string,
     texture: Texture_Type,
     on_right_click: Item_Action,
+    on_left_click: Item_Action,
 }
 items := [Item_Type]Item_Info{
     .Dirt = {
@@ -91,7 +103,8 @@ items := [Item_Type]Item_Info{
         flags = {.WIRES_VISIBLE},
         name = "Wire",
         texture = .Wire,
-        on_right_click = .Wire_Item_Use,
+        on_right_click = .Wire_Item_Right_Click,
+        on_left_click = .Wire_Item_Left_Click,
     },
     .Button = {
         block = .Button,
@@ -107,9 +120,11 @@ items := [Item_Type]Item_Info{
     }
 }
 
-wire_item_use :: proc() {
+wire_item_right_click :: proc(item: ^Item) {
     if !state.looking_at_block do return
-    if pos, ok := state.select_block_pos.(Vec3I); ok {
+    if pos, ok := item.data.selected_block.?; ok {
+        if pos == state.look_target do return
+        
         source_block := world_get_block(pos)
         target_block := world_get_block(state.look_target)
         
@@ -117,7 +132,7 @@ wire_item_use :: proc() {
         target_info := block_infos[target_block.type]
         
         if !(.WIRE_INPUT in source_info.flags) || !(.WIRE_OUTPUT in target_info.flags) {
-            state.select_block_pos = nil
+            item.data.selected_block = nil
             return
         }
         
@@ -147,21 +162,22 @@ wire_item_use :: proc() {
                 world_set_block(pos, source_block)
             }
         }
-        
-        state.select_block_pos = nil
-    }
-    else {
+    } else {
         target_block := world_get_block(state.look_target)
         target_info := block_infos[target_block.type]
         if .WIRE_INPUT in target_info.flags {
-            state.select_block_pos = state.look_target
+            item.data.selected_block = state.look_target
         }
     }
 }
 
-block_place :: proc() {
+wire_item_left_click :: proc(item: ^Item) {
+    item.data.selected_block = nil
+}
+
+block_place :: proc(item: ^Item) {
     if state.held_item == nil do return
-    block_type, ok := items[state.held_item.?].block.?
+    block_type, ok := items[item.type].block.?
     if !ok do return
     block := Block{type=block_type}
     if is_overlapping(state.position, state.place_target, block) do return

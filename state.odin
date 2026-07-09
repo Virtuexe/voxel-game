@@ -40,14 +40,13 @@ Player_Interaction :: struct {
     place_pitch_face: Block_Face,
     place_half: Block_Face,
     
-    held_item: Maybe(Item_Type),
-    hotbar: [9]Maybe(Item_Type),
+    held_item: Maybe(Item),
+    hotbar: [9]Maybe(Item),
     hotbar_index: int,
-    select_block_pos: Maybe(Vec3I),
     
-    cursor: Maybe(Item_Type),
-    player_storage: [STORAGE_SLOTS]Maybe(Item_Type),
-    target_storage: [STORAGE_SLOTS]Maybe(Item_Type),
+    cursor: Maybe(Item),
+    player_storage: [STORAGE_SLOTS]Maybe(Item),
+    target_storage: [STORAGE_SLOTS]Maybe(Item),
 }
 
 Player_Collider :: struct {
