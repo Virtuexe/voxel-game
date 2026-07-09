@@ -41,7 +41,8 @@ Animation_Data :: struct {
 }
 
 Animator :: struct {
-    transforms: [MAX_TEXTURE_GROUPS]rl.Matrix,
+    local_transforms: [MAX_TEXTURE_GROUPS]rl.Matrix,
+    global_transforms: [MAX_TEXTURE_GROUPS]rl.Matrix,
 }
 
 Keyframe :: struct {
@@ -81,7 +82,7 @@ animate_move :: proc(data: Animation_Data, a: ^Animator) {
     } * (1.0 - progress)
     
     for i in 0..<MAX_TEXTURE_GROUPS {
-        animator_translate(a, i, offset)
+        animator_translate_global(a, i, offset)
     }
 }
 
@@ -126,19 +127,32 @@ animate_sequence :: proc(t: f32, initial_val: f32, seq: []Keyframe) -> f32 {
 animator_init :: proc() -> Animator {
     a: Animator
     for i in 0..<MAX_TEXTURE_GROUPS {
-        a.transforms[i] = rl.Matrix(1)
+        a.local_transforms[i] = rl.Matrix(1)
+        a.global_transforms[i] = rl.Matrix(1)
     }
     return a
 }
 
 animator_translate :: proc(a: ^Animator, group: int, offset: Vec3) {
-    a.transforms[group] = rl.MatrixTranslate(offset.x, offset.y, offset.z) * a.transforms[group]
+    a.local_transforms[group] = rl.MatrixTranslate(offset.x, offset.y, offset.z) * a.local_transforms[group]
+}
+
+animator_translate_global :: proc(a: ^Animator, group: int, offset: Vec3) {
+    a.global_transforms[group] = rl.MatrixTranslate(offset.x, offset.y, offset.z) * a.global_transforms[group]
 }
 
 animator_scale :: proc(a: ^Animator, group: int, scale: Vec3) {
-    a.transforms[group] = rl.MatrixScale(scale.x, scale.y, scale.z) * a.transforms[group]
+    a.local_transforms[group] = rl.MatrixScale(scale.x, scale.y, scale.z) * a.local_transforms[group]
+}
+
+animator_scale_global :: proc(a: ^Animator, group: int, scale: Vec3) {
+    a.global_transforms[group] = rl.MatrixScale(scale.x, scale.y, scale.z) * a.global_transforms[group]
 }
 
 animator_rotate :: proc(a: ^Animator, group: int, axis: Vec3, angle: f32) {
-    a.transforms[group] = rl.MatrixRotate(axis, angle) * a.transforms[group]
+    a.local_transforms[group] = rl.MatrixRotate(axis, angle) * a.local_transforms[group]
+}
+
+animator_rotate_global :: proc(a: ^Animator, group: int, axis: Vec3, angle: f32) {
+    a.global_transforms[group] = rl.MatrixRotate(axis, angle) * a.global_transforms[group]
 }

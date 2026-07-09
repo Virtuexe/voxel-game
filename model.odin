@@ -132,8 +132,9 @@ get_block_bbox :: proc(block: Block, pos: Vec3I) -> rl.BoundingBox {
 
     for part in model_data.parts {
         has_parts = true
-        part_trans := animator.transforms[part.group_id]
-        final_mat := rot_mat * part_trans
+        local_trans := animator.local_transforms[part.group_id]
+        global_trans := animator.global_transforms[part.group_id]
+        final_mat := global_trans * rot_mat * local_trans
         t_box := rotate_bbox(part.visual_bbox, final_mat)
         
         new_min.x = min(new_min.x, t_box.min.x)
@@ -185,8 +186,9 @@ get_block_bboxes :: proc(block: Block, buf: ^[8]rl.BoundingBox, pos: Vec3I) -> [
     }
     count := 0
     for part in model_data.parts {
-        part_trans := animator.transforms[part.group_id]
-        final_mat := rot * part_trans
+        local_trans := animator.local_transforms[part.group_id]
+        global_trans := animator.global_transforms[part.group_id]
+        final_mat := global_trans * rot * local_trans
         for bbox in part.collision_bboxes {
             if count < len(buf) {
                 buf[count] = rotate_bbox(bbox, final_mat)

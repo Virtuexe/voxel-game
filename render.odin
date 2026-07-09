@@ -176,8 +176,12 @@ draw_world_chunks :: proc() {
                         rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, t)
                     }
                 }
+                animator := animator_init()
+                if anim, ok := get_active_animation(global_pos); ok {
+                    info := animation_infos[anim.type]
+                    info.proc_(anim, &animator)
+                }
                 
-                mat_transform := rl.MatrixTranslate(p.x, p.y, p.z) * model_to_draw.transform
                 for m_idx in 0..<model_to_draw.meshCount {
                     if model_to_draw.meshes[m_idx].vertexCount == 0 do continue
                     
@@ -188,12 +192,8 @@ draw_world_chunks :: proc() {
                     lock_uv: f32 = tex_info.lock_uv_y[group][face] ? 1.0 : 0.0
                     rl.SetShaderValue(block_shader, lock_uv_loc, &lock_uv, .FLOAT)
                     
-                    animator := animator_init()
-                    if anim, ok := get_active_animation(global_pos); ok {
-                        info := animation_infos[anim.type]
-                        info.proc_(anim, &animator)
-                    }
-                    mesh_transform := mat_transform * animator.transforms[group]
+                    mat_transform := rl.MatrixTranslate(p.x, p.y, p.z) * animator.global_transforms[group] * model_to_draw.transform
+                    mesh_transform := mat_transform * animator.local_transforms[group]
                     
                     rl.DrawMesh(model_to_draw.meshes[m_idx], model_to_draw.materials[mat_idx], mesh_transform)
                 }
