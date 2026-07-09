@@ -6,6 +6,13 @@ World_State :: struct {
     chunks: map[[3]i32]^Chunk,
     wires: map[[3]i32][dynamic]Wire,
     pending_moves: [dynamic]Pending_Move,
+    scheduled_actions: [dynamic]Scheduled_Action,
+}
+
+Scheduled_Action :: struct {
+    action: Block_Action,
+    pos: [3]i32,
+    time: f64,
 }
 
 Pending_Move :: struct {
@@ -23,6 +30,7 @@ world_init :: proc() {
     state.world.chunks = make(map[[3]i32]^Chunk)
     state.world.wires = make(map[[3]i32][dynamic]Wire)
     state.world.pending_moves = make([dynamic]Pending_Move)
+    state.world.scheduled_actions = make([dynamic]Scheduled_Action)
     
     for x in -8..<8 {
         for z in -8..<8 {
@@ -148,6 +156,29 @@ world_update_moves :: proc() {
         if time >= move.start_time + move.duration {
             world_move_block(move.from_pos, move.to_pos)
             unordered_remove(&state.world.pending_moves, i)
+        } else {
+            i += 1
+        }
+    }
+}
+
+world_schedule_action :: proc(action: Block_Action, pos: [3]i32, delay: f64) {
+    append(&state.world.scheduled_actions, Scheduled_Action{
+        action = action,
+        pos = pos,
+        time = rl.GetTime() + delay,
+    })
+}
+
+world_update_scheduled_actions :: proc() {
+    time := rl.GetTime()
+    for i := 0; i < len(state.world.scheduled_actions); {
+        action := state.world.scheduled_actions[i]
+        if time >= action.time {
+            unordered_remove(&state.world.scheduled_actions, i)
+            if block_actions[action.action] != nil {
+                block_actions[action.action](action.pos)
+            }
         } else {
             i += 1
         }

@@ -153,6 +153,7 @@ update :: proc(ustate: ^UI_State) {
 
     update_ui(ustate)
     update_code()
+    world_update_scheduled_actions()
     world_update_moves()
 }
 

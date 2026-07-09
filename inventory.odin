@@ -6,13 +6,13 @@ init_hotbar :: proc() {
     state.hotbar = {
         .Dirt,
         .Stone,
-        .Cobblestone,
         .Glass,
         .Planks,
         .Stairs,
         .Piston,
         .Button,
         .Wire,
+        .Torch,
     }
     state.held_item = state.hotbar[0]
 }
@@ -21,7 +21,7 @@ init_inventory :: proc() {
     init_hotbar()
     state.player_storage[0] = .Dirt
     state.player_storage[1] = .Glass
-    state.player_storage[2] = .Planks
+    state.player_storage[2] = .Cobblestone
     state.player_storage[3] = .Slab
 }
 

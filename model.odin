@@ -1,0 +1,198 @@
+package voxel_game
+
+import rl "vendor:raylib"
+import "core:slice"
+
+Block_Part :: struct {
+    group_id: int,
+    collision_bboxes: []rl.BoundingBox,
+    visual_bbox: rl.BoundingBox,
+}
+
+Block_Model_Data :: struct {
+    model: rl.Model,
+    parts: []Block_Part,
+    center: Vec3,
+    base_facing: Block_Face,
+}
+block_models: [Block_Type]Block_Model_Data
+
+Block_Model :: enum {Cube, Slab, Decal, Stairs, Piston, Button, Torch}
+
+init_models :: proc() {
+    img := rl.GenImageColor(1, 1, rl.WHITE)
+    white_texture = rl.LoadTextureFromImage(img)
+    rl.UnloadImage(img)
+
+    for type in Block_Type {
+        if type == .Air do continue
+        
+        info := block_infos[type]
+        tex_info := block_infos[type].texture
+        b := builder_init()
+        facing := Block_Face.North
+        
+        switch info.model {
+        case .Cube:
+            builder_add_box(&b, {0, 0, 0}, {1, 1, 1}, {}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+        case .Slab:
+            builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+            builder_set_center(&b, {0.5, 0.25, 0.5})
+            facing = .Top
+        case .Decal:
+            builder_add_quad(&b, .Top, {0, 0.001, 0}, {1, 0.001, 1}, 0, tex_info.uv_rotations[0][.Top], tex_info.uv_rects[0][.Top])
+            builder_add_collision_box(&b, 0, {0, 0, 0}, {1, 0.01, 1})
+            builder_set_center(&b, {0.5, 0.0, 0.5})
+        case .Stairs:
+            builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {.Top}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+            builder_add_quad(&b, .Top, {0, 0.5, 0}, {1, 0.5, 0.5}, 0, tex_info.uv_rotations[0][.Top], tex_info.uv_rects[0][.Top])
+            builder_add_box(&b, {0, 0.5, 0.5}, {1, 1, 1}, {.Bottom}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+        case .Piston:
+            builder_add_box(&b, {0, 0, 0}, {1, 0.75, 1}, {}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+            //arm
+            builder_add_box(&b, {0.375, 0, 0.375}, {0.625, 0.75, 0.625}, {.Bottom, .Top}, 1, tex_info.uv_rotations[1], tex_info.uv_rects[1])
+            //head
+            builder_add_box(&b, {0, 0.75, 0}, {1, 1, 1}, {}, 2, tex_info.uv_rotations[2], tex_info.uv_rects[2])
+            builder_set_center(&b, {0.5, 0.5, 0.5})
+            facing = .Top
+        case .Button:
+            builder_add_box(&b, {0.3, 0.4, 0.9}, {0.7, 0.6, 1}, {.South})
+            builder_set_center(&b, {0.5, 0.5, 1})
+        case .Torch:
+            // Main stick (2x2x10)
+            builder_add_box(&b, px_vec({7, 0, 7}), px_vec({9, 10, 9}), {}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+            
+            // Inverted head centered at the tip
+            builder_add_inverted_box(&b, px_vec({6.5, 7.5, 6.5}), px_vec({9.5, 10.5, 9.5}), {}, 1, tex_info.uv_rotations[1], tex_info.uv_rects[1])
+            builder_set_center(&b, {0.5, 0.0, 0.5})
+            facing = .Top
+        }
+        
+        m := builder_build(&b, facing)
+        
+        parts: [dynamic]Block_Part
+        for i in 0..<MAX_TEXTURE_GROUPS {
+            if len(b.collision_bboxes[i]) > 0 || len(b.positions[i*6]) > 0 { // Check if group has collision or meshes
+                v_bbox := builder_get_visual_bbox(&b, i)
+                append(&parts, Block_Part{
+                    group_id = i,
+                    collision_bboxes = slice.clone(b.collision_bboxes[i][:]),
+                    visual_bbox = v_bbox,
+                })
+            }
+        }
+        
+        block_models[type] = {
+            model = m,
+            parts = parts[:], // slice out of dynamic array
+            center = b.center,
+            base_facing = facing,
+        }
+        
+        builder_destroy(&b)
+    }
+}
+
+// Returns the base model for a block type (no transform applied)
+get_base_model :: proc(block: Block) -> rl.Model {
+    return block_models[block.type].model
+}
+
+// Returns the model with the correct rotation transform applied.
+// Caller should restore model.transform after drawing if needed.
+get_block_model :: proc(block: Block) -> rl.Model {
+    model := get_base_model(block)
+    rot_mat := get_block_transform(block)
+    model.transform = model.transform * rot_mat
+    return model
+}
+
+// Returns the visual center of the block in local space (accounting for rotation)
+get_block_center :: proc(block: Block) -> rl.Vector3 {
+    if block.type == .Air do return {0.5, 0.5, 0.5}
+    base_center := block_models[block.type].center
+    rot_mat := get_block_transform(block)
+    return rl.Vector3Transform(base_center, rot_mat)
+}
+
+// Returns an axis-aligned bounding box for the block in local space,
+// accounting for rotation and part animations.
+get_block_bbox :: proc(block: Block) -> rl.BoundingBox {
+    model_data := block_models[block.type]
+    rot_mat := get_block_transform(block)
+    
+    animator := animator_init()
+    if block_infos[block.type].animate != .None {
+        block_animate_procs[block_infos[block.type].animate](block, &animator)
+    }
+    
+    new_min := rl.Vector3{99999, 99999, 99999}
+    new_max := rl.Vector3{-99999, -99999, -99999}
+    has_parts := false
+
+    for part in model_data.parts {
+        has_parts = true
+        part_trans := animator.transforms[part.group_id]
+        final_mat := rot_mat * part_trans
+        t_box := rotate_bbox(part.visual_bbox, final_mat)
+        
+        new_min.x = min(new_min.x, t_box.min.x)
+        new_min.y = min(new_min.y, t_box.min.y)
+        new_min.z = min(new_min.z, t_box.min.z)
+        new_max.x = max(new_max.x, t_box.max.x)
+        new_max.y = max(new_max.y, t_box.max.y)
+        new_max.z = max(new_max.z, t_box.max.z)
+    }
+    
+    if !has_parts do return rl.BoundingBox{}
+    return rl.BoundingBox{new_min, new_max}
+}
+
+// Rotates a local-space AABB through a matrix and returns the new AABB.
+rotate_bbox :: proc(base: rl.BoundingBox, rot: rl.Matrix) -> rl.BoundingBox {
+    corners := [8]Vec3{
+        {base.min.x, base.min.y, base.min.z},
+        {base.max.x, base.min.y, base.min.z},
+        {base.min.x, base.max.y, base.min.z},
+        {base.max.x, base.max.y, base.min.z},
+        {base.min.x, base.min.y, base.max.z},
+        {base.max.x, base.min.y, base.max.z},
+        {base.min.x, base.max.y, base.max.z},
+        {base.max.x, base.max.y, base.max.z},
+    }
+    new_min := rl.Vector3Transform(corners[0], rot)
+    new_max := new_min
+    for i in 1..<8 {
+        t := rl.Vector3Transform(corners[i], rot)
+        new_min.x = min(new_min.x, t.x); new_max.x = max(new_max.x, t.x)
+        new_min.y = min(new_min.y, t.y); new_max.y = max(new_max.y, t.y)
+        new_min.z = min(new_min.z, t.z); new_max.z = max(new_max.z, t.z)
+    }
+    return rl.BoundingBox{new_min, new_max}
+}
+
+// Returns 1 or more bboxes for a block in local space (relative to block origin).
+// Caller must pass a buffer of at least max_collisions to hold results.
+// Returns the slice of filled bboxes.
+get_block_bboxes :: proc(block: Block, buf: ^[8]rl.BoundingBox) -> []rl.BoundingBox {
+    model_data := block_models[block.type]
+    rot := get_block_transform(block)
+    
+    animator := animator_init()
+    if block_infos[block.type].animate != .None {
+        block_animate_procs[block_infos[block.type].animate](block, &animator)
+    }
+    
+    count := 0
+    for part in model_data.parts {
+        part_trans := animator.transforms[part.group_id]
+        final_mat := rot * part_trans
+        for bbox in part.collision_bboxes {
+            if count < len(buf) {
+                buf[count] = rotate_bbox(bbox, final_mat)
+                count += 1
+            }
+        }
+    }
+    return buf[:count]
+}

@@ -21,6 +21,10 @@ builder_set_center :: proc(b: ^Block_Model_Builder, center: Vec3) {
     b.center = center
 }
 
+px_vec :: proc(v: Vec3) -> Vec3 {
+    return v / 16.0
+}
+
 builder_destroy :: proc(b: ^Block_Model_Builder) {
     for i in 0..<MAX_TEXTURE_GROUPS * 6 {
         delete(b.positions[i])
@@ -213,5 +217,91 @@ builder_add_box :: proc(b: ^Block_Model_Builder, min_p, max_p: [3]f32, excluded_
     if .South not_in excluded_faces  do builder_add_quad(b, .South,  {min_p.x, min_p.y, max_p.z}, {max_p.x, max_p.y, max_p.z}, group, uv_rotations[.South], uv_rects[.South])
     if .East not_in excluded_faces   do builder_add_quad(b, .East,   {max_p.x, min_p.y, min_p.z}, {max_p.x, max_p.y, max_p.z}, group, uv_rotations[.East], uv_rects[.East])
     if .West not_in excluded_faces   do builder_add_quad(b, .West,   {min_p.x, min_p.y, min_p.z}, {min_p.x, max_p.y, max_p.z}, group, uv_rotations[.West], uv_rects[.West])
+    builder_add_collision_box(b, group, min_p, max_p)
+}
+
+builder_add_inverted_quad :: proc(b: ^Block_Model_Builder, face: Block_Face, min_p, max_p: [3]f32, group: int = 0, uv_rot: UV_Rotation = .Deg_0, uv_rect: UV_Rect = {}) {
+    p: [4][3]f32
+    uv: [4][2]f32
+    norm: [3]f32
+    
+    switch face {
+    case .Top:
+        norm = {0, -1, 0}
+        p[0] = {min_p.x, max_p.y, min_p.z}
+        p[1] = {min_p.x, max_p.y, max_p.z}
+        p[2] = {max_p.x, max_p.y, max_p.z}
+        p[3] = {max_p.x, max_p.y, min_p.z}
+        for i in 0..<4 do uv[i] = {p[i].x, p[i].z}
+
+    case .Bottom:
+        norm = {0, 1, 0}
+        p[0] = {min_p.x, min_p.y, max_p.z}
+        p[1] = {min_p.x, min_p.y, min_p.z}
+        p[2] = {max_p.x, min_p.y, min_p.z}
+        p[3] = {max_p.x, min_p.y, max_p.z}
+        for i in 0..<4 do uv[i] = {p[i].x, p[i].z}
+
+    case .South: // +Z
+        norm = {0, 0, -1}
+        p[0] = {min_p.x, max_p.y, max_p.z}
+        p[1] = {min_p.x, min_p.y, max_p.z}
+        p[2] = {max_p.x, min_p.y, max_p.z}
+        p[3] = {max_p.x, max_p.y, max_p.z}
+        for i in 0..<4 do uv[i] = {p[i].x, 1.0 - p[i].y}
+
+    case .North: // -Z
+        norm = {0, 0, 1}
+        p[0] = {max_p.x, max_p.y, min_p.z}
+        p[1] = {max_p.x, min_p.y, min_p.z}
+        p[2] = {min_p.x, min_p.y, min_p.z}
+        p[3] = {min_p.x, max_p.y, min_p.z}
+        for i in 0..<4 do uv[i] = {1.0 - p[i].x, 1.0 - p[i].y}
+
+    case .East: // +X
+        norm = {-1, 0, 0}
+        p[0] = {max_p.x, max_p.y, max_p.z}
+        p[1] = {max_p.x, min_p.y, max_p.z}
+        p[2] = {max_p.x, min_p.y, min_p.z}
+        p[3] = {max_p.x, max_p.y, min_p.z}
+        for i in 0..<4 do uv[i] = {1.0 - p[i].z, 1.0 - p[i].y}
+
+    case .West: // -X
+        norm = {1, 0, 0}
+        p[0] = {min_p.x, max_p.y, min_p.z}
+        p[1] = {min_p.x, min_p.y, min_p.z}
+        p[2] = {min_p.x, min_p.y, max_p.z}
+        p[3] = {min_p.x, max_p.y, max_p.z}
+        for i in 0..<4 do uv[i] = {p[i].z, 1.0 - p[i].y}
+    }
+    
+    fi := group * 6 + int(face)
+    base := u16(len(b.positions[fi]))
+    
+    if uv_rect.size.x != 0 || uv_rect.size.y != 0 {
+        uv[3] = {uv_rect.pos.x, uv_rect.pos.y}
+        uv[2] = {uv_rect.pos.x, uv_rect.pos.y + uv_rect.size.y}
+        uv[1] = {uv_rect.pos.x + uv_rect.size.x, uv_rect.pos.y + uv_rect.size.y}
+        uv[0] = {uv_rect.pos.x + uv_rect.size.x, uv_rect.pos.y}
+    }
+    
+    for i in 0..<4 {
+        append(&b.positions[fi], p[i])
+        append(&b.normals[fi], norm)
+        append(&b.texcoords[fi], uv[(i + int(uv_rot)) % 4])
+    }
+    
+    // Inverted Quad triangles: 0,2,1 and 0,3,2
+    append(&b.indices[fi], base, base+2, base+1)
+    append(&b.indices[fi], base, base+3, base+2)
+}
+
+builder_add_inverted_box :: proc(b: ^Block_Model_Builder, min_p, max_p: [3]f32, excluded_faces: bit_set[Block_Face] = {}, group: int = 0, uv_rotations: [Block_Face]UV_Rotation = {}, uv_rects: [Block_Face]UV_Rect = {}) {
+    if .Top not_in excluded_faces    do builder_add_inverted_quad(b, .Top,    {min_p.x, max_p.y, min_p.z}, {max_p.x, max_p.y, max_p.z}, group, uv_rotations[.Top], uv_rects[.Top])
+    if .Bottom not_in excluded_faces do builder_add_inverted_quad(b, .Bottom, {min_p.x, min_p.y, min_p.z}, {max_p.x, min_p.y, max_p.z}, group, uv_rotations[.Bottom], uv_rects[.Bottom])
+    if .North not_in excluded_faces  do builder_add_inverted_quad(b, .North,  {min_p.x, min_p.y, min_p.z}, {max_p.x, max_p.y, min_p.z}, group, uv_rotations[.North], uv_rects[.North])
+    if .South not_in excluded_faces  do builder_add_inverted_quad(b, .South,  {min_p.x, min_p.y, max_p.z}, {max_p.x, max_p.y, max_p.z}, group, uv_rotations[.South], uv_rects[.South])
+    if .East not_in excluded_faces   do builder_add_inverted_quad(b, .East,   {max_p.x, min_p.y, min_p.z}, {max_p.x, max_p.y, max_p.z}, group, uv_rotations[.East], uv_rects[.East])
+    if .West not_in excluded_faces   do builder_add_inverted_quad(b, .West,   {min_p.x, min_p.y, min_p.z}, {min_p.x, max_p.y, max_p.z}, group, uv_rotations[.West], uv_rects[.West])
     builder_add_collision_box(b, group, min_p, max_p)
 }

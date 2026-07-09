@@ -5,7 +5,7 @@ import ui "raylib-ui"
 Item_Type :: enum {
     Dirt, Stone, Cobblestone, Glass, Planks,
     Redstone, Slab, Stairs, Piston,
-    Wire, Button,
+    Wire, Button, Torch
 }
 
 Item_Flag :: enum {
@@ -97,6 +97,12 @@ items := [Item_Type]Item_Info{
         block = .Button,
         name = "Button",
         texture = .Stone,
+        on_right_click = .Block_Place,
+    },
+    .Torch = {
+        block = .Torch,
+        name = "Torch",
+        texture = .Torch_On,
         on_right_click = .Block_Place,
     }
 }

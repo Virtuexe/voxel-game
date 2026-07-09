@@ -6,6 +6,7 @@ Texture_Type :: enum {
     Dirt, Stone, Cobblestone, Glass, Planks,
     Slab_Side, Slab_Top,
     Piston_Side, Piston_Top, Piston_Bottom, Piston_Inner,
+    Torch_On, Torch_Off,
     //Items
     Wire, Copper_Wire,
 }
@@ -24,6 +25,8 @@ texture_paths := [Texture_Type]cstring {
     .Piston_Inner = "assets/piston_inner.png",
     .Wire = "assets/wire.png",
     .Copper_Wire = "assets/copper_wire.png",
+    .Torch_On = "assets/torch.png",
+    .Torch_Off = "assets/torch_off.png"
 }
 
 textures: [Texture_Type]rl.Texture2D
@@ -74,8 +77,8 @@ fill_lock_uv_y :: proc(lock: bool) -> [Block_Face]bool {
 
 // Converts a pixel region (0-16) to normalized 0.0-1.0 UV mapping coordinates.
 // Perfect for accurately mapping subsets of textures to block geometry!
-pixel_uv :: proc(x, y, w, h: f32) -> UV_Rect {
-    return {{x / 16.0, y / 16.0}, {w / 16.0, h / 16.0}}
+pixel_uv :: proc(rect: UV_Rect) -> UV_Rect {
+    return {{rect.pos.x / 16.0, rect.pos.y / 16.0}, {rect.size.x / 16.0, rect.size.y / 16.0}}
 }
 
 init_block_textures :: proc() {
@@ -106,7 +109,7 @@ init_block_textures :: proc() {
             texture.textures[0][.Bottom] = .Piston_Bottom
             
             texture.textures[1] = fill_textures(.Piston_Side)
-            texture.uv_rects[1] = fill_uv_rects(pixel_uv(0, 0, 16, 4))
+            texture.uv_rects[1] = fill_uv_rects(pixel_uv({{0, 0}, {16, 4}}))
             texture.uv_rotations[1] = fill_uv_rotations(.Deg_90_CCW)
 
             texture.textures[2] = fill_textures(.Piston_Side)
@@ -117,6 +120,16 @@ init_block_textures :: proc() {
             texture.lock_uv_y[0] = fill_lock_uv_y(true)
         case .Redstone:
             // Redstone texture is handled procedurally based on connections
+        case .Torch:
+            // Group 0: Main Stick
+            texture.textures[0] = fill_textures(.Torch_On)
+            texture.uv_rects[0] = fill_uv_rects(pixel_uv({{7, 6}, {2, 10}}))
+            texture.uv_rects[0][.Top] = pixel_uv({{7, 6}, {2, 2}})
+            texture.uv_rects[0][.Bottom] = pixel_uv({{7, 14}, {2, 2}})
+            
+            // Group 1: Inverted Flame Head
+            texture.textures[1] = fill_textures(.Torch_On)
+            texture.uv_rects[1] = fill_uv_rects(pixel_uv({{6, 5}, {1, 1}}))
         }
     }
 }

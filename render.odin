@@ -72,71 +72,7 @@ init_shaders :: proc() {
     lock_uv_loc = rl.GetShaderLocation(block_shader, "lockUV")
 }
 
-init_models :: proc() {
-    img := rl.GenImageColor(1, 1, rl.WHITE)
-    white_texture = rl.LoadTextureFromImage(img)
-    rl.UnloadImage(img)
 
-    for type in Block_Type {
-        if type == .Air do continue
-        
-        info := block_infos[type]
-        tex_info := block_infos[type].texture
-        b := builder_init()
-        facing := Block_Face.North
-        
-        switch info.model {
-        case .Cube:
-            builder_add_box(&b, {0, 0, 0}, {1, 1, 1}, {}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
-        case .Slab:
-            builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
-            builder_set_center(&b, {0.5, 0.25, 0.5})
-            facing = .Top
-        case .Decal:
-            builder_add_quad(&b, .Top, {0, 0.001, 0}, {1, 0.001, 1}, 0, tex_info.uv_rotations[0][.Top], tex_info.uv_rects[0][.Top])
-            builder_add_collision_box(&b, 0, {0, 0, 0}, {1, 0.01, 1})
-            builder_set_center(&b, {0.5, 0.0, 0.5})
-        case .Stairs:
-            builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {.Top}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
-            builder_add_quad(&b, .Top, {0, 0.5, 0}, {1, 0.5, 0.5}, 0, tex_info.uv_rotations[0][.Top], tex_info.uv_rects[0][.Top])
-            builder_add_box(&b, {0, 0.5, 0.5}, {1, 1, 1}, {.Bottom}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
-        case .Piston:
-            builder_add_box(&b, {0, 0, 0}, {1, 0.75, 1}, {}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
-            //arm
-            builder_add_box(&b, {0.375, 0, 0.375}, {0.625, 0.75, 0.625}, {.Bottom, .Top}, 1, tex_info.uv_rotations[1], tex_info.uv_rects[1])
-            //head
-            builder_add_box(&b, {0, 0.75, 0}, {1, 1, 1}, {}, 2, tex_info.uv_rotations[2], tex_info.uv_rects[2])
-            builder_set_center(&b, {0.5, 0.5, 0.5})
-            facing = .Top
-        case .Button:
-            builder_add_box(&b, {0.3, 0.4, 0.9}, {0.7, 0.6, 1}, {.South})
-            builder_set_center(&b, {0.5, 0.5, 1})
-        }
-        
-        m := builder_build(&b, facing)
-        
-        parts: [dynamic]Block_Part
-        for i in 0..<MAX_TEXTURE_GROUPS {
-            if len(b.collision_bboxes[i]) > 0 || len(b.positions[i*6]) > 0 { // Check if group has collision or meshes
-                v_bbox := builder_get_visual_bbox(&b, i)
-                append(&parts, Block_Part{
-                    group_id = i,
-                    collision_bboxes = slice.clone(b.collision_bboxes[i][:]),
-                    visual_bbox = v_bbox,
-                })
-            }
-        }
-        
-        block_models[type] = {
-            model = m,
-            parts = parts[:], // slice out of dynamic array
-            center = b.center,
-            base_facing = facing,
-        }
-        
-        builder_destroy(&b)
-    }
-}
 
 
 
@@ -229,7 +165,13 @@ draw_world_chunks :: proc() {
                     for i in 0..<MAX_TEXTURE_GROUPS * 6 {
                         group := i / 6
                         face := Block_Face(i % 6)
-                        t := textures[tex_info.textures[group][face]]
+                        t_type := tex_info.textures[group][face]
+                        
+                        if block.type == .Torch && t_type == .Torch_On && !block.data.torch.on {
+                            t_type = .Torch_Off
+                        }
+                        
+                        t := textures[t_type]
                         // We only have active meshes mapped properly if their material matches
                         rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, t)
                     }

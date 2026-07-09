@@ -47,7 +47,7 @@ piston_animate :: proc(block: Block, a: ^Animator) {
     head_rot: f32 = 0.0
     
     if t < 0.3 {
-        // Push out over 0.3s
+        // Push out over 0.1s
         ext = (t / 0.3) * 1.0
     } else if t < 0.4 {
         // Wait 0.1s
