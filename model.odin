@@ -117,15 +117,15 @@ get_block_center :: proc(block: Block) -> rl.Vector3 {
 
 // Returns an axis-aligned bounding box for the block in local space,
 // accounting for rotation and part animations.
-get_block_bbox :: proc(block: Block) -> rl.BoundingBox {
+get_block_bbox :: proc(block: Block, pos: Vec3I) -> rl.BoundingBox {
     model_data := block_models[block.type]
     rot_mat := get_block_transform(block)
     
     animator := animator_init()
-    if block_infos[block.type].animate != .None {
-        block_animate_procs[block_infos[block.type].animate](block, &animator)
+    if anim, ok := get_active_animation(pos); ok {
+        info := animation_infos[anim.type]
+        info.proc_(anim, &animator)
     }
-    
     new_min := rl.Vector3{99999, 99999, 99999}
     new_max := rl.Vector3{-99999, -99999, -99999}
     has_parts := false
@@ -174,15 +174,15 @@ rotate_bbox :: proc(base: rl.BoundingBox, rot: rl.Matrix) -> rl.BoundingBox {
 // Returns 1 or more bboxes for a block in local space (relative to block origin).
 // Caller must pass a buffer of at least max_collisions to hold results.
 // Returns the slice of filled bboxes.
-get_block_bboxes :: proc(block: Block, buf: ^[8]rl.BoundingBox) -> []rl.BoundingBox {
+get_block_bboxes :: proc(block: Block, buf: ^[8]rl.BoundingBox, pos: Vec3I) -> []rl.BoundingBox {
     model_data := block_models[block.type]
     rot := get_block_transform(block)
     
     animator := animator_init()
-    if block_infos[block.type].animate != .None {
-        block_animate_procs[block_infos[block.type].animate](block, &animator)
+    if anim, ok := get_active_animation(pos); ok {
+        info := animation_infos[anim.type]
+        info.proc_(anim, &animator)
     }
-    
     count := 0
     for part in model_data.parts {
         part_trans := animator.transforms[part.group_id]

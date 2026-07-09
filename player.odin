@@ -113,7 +113,7 @@ update_player :: proc(delta: f32) {
             }
         }
         state.position[i] += movement[i]
-        center := [3]i32{
+        center := Vec3I{
             i32(math.floor(state.position.x)), 
             i32(math.floor(state.position.y)), 
             i32(math.floor(state.position.z))
@@ -125,11 +125,10 @@ update_player :: proc(delta: f32) {
 
             feet_y := state.position.y
             bbox_buf: [8]rl.BoundingBox
-            bboxes := get_block_bboxes(block, &bbox_buf)
+            bboxes := get_block_bboxes(block, &bbox_buf, global_pos)
             for model_bbox in bboxes {
-                offset := get_pending_move_offset(global_pos)
-                b_min := block_pos + model_bbox.min + offset
-                b_max := block_pos + model_bbox.max + offset
+                b_min := block_pos + model_bbox.min
+                b_max := block_pos + model_bbox.max
 
                 // Quick per-box overlap check
                 p_min := state.position - {state.collider_size.x/2, 0, state.collider_size.z/2}
@@ -211,7 +210,7 @@ update_player :: proc(delta: f32) {
                 item := items[state.held_item.?]
                 item_actions[item.on_right_click]()
             } else if block_info.on_right_click != .None {
-                block_actions[block_info.on_right_click](state.look_target)
+                block_actions[block_info.on_right_click](state.look_target, {})
             }
         }
     }
@@ -249,7 +248,7 @@ get_wasd_input :: proc(forward, right, up: Vec3) -> (wasd:Vec3) {
 }
 
 is_player_colliding :: proc(pos: Vec3) -> bool {
-    center := [3]i32{
+    center := Vec3I{
         i32(math.floor(pos.x)), 
         i32(math.floor(pos.y)), 
         i32(math.floor(pos.z))
@@ -269,22 +268,21 @@ is_player_supported :: proc(pos: Vec3) -> bool {
     return is_player_colliding(test_pos)
 }
 
-is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block) -> bool {
+is_overlapping :: proc(player: Vec3, block_pos: Vec3I, block: Block) -> bool {
     if block.type == .Air do return false
     info := block_infos[block.type]
     if .NO_COLLISION in info.flags do return false
-    offset := get_pending_move_offset(block_pos)
-    block_pos := to_vec3(block_pos)
+    block_pos_vec := to_vec3(block_pos)
 
     p_min := player - {state.collider_size.x/2, 0, state.collider_size.z/2}
     p_max := p_min + state.collider_size
 
     // Test against each sub-bbox (2 for stairs, 1 for everything else)
     bbox_buf: [8]rl.BoundingBox
-    for model_bbox in get_block_bboxes(block, &bbox_buf) {
+    for model_bbox in get_block_bboxes(block, &bbox_buf, block_pos) {
 
-        b_min := block_pos + model_bbox.min + offset
-        b_max := block_pos + model_bbox.max + offset
+        b_min := block_pos_vec + model_bbox.min
+        b_max := block_pos_vec + model_bbox.max
         if min(p_max.x,b_max.x)-max(p_min.x,b_min.x) > 0.001 &&
            min(p_max.y,b_max.y)-max(p_min.y,b_min.y) > 0.001 &&
            min(p_max.z,b_max.z)-max(p_min.z,b_min.z) > 0.001 {
@@ -294,7 +292,7 @@ is_overlapping :: proc(player: Vec3, block_pos: [3]i32, block: Block) -> bool {
     return false
 }
 
-is_overlapping_at :: proc(player: Vec3, global_pos: [3]i32) -> bool {
+is_overlapping_at :: proc(player: Vec3, global_pos: Vec3I) -> bool {
     return is_overlapping(player, global_pos, world_get_block(global_pos))
 }
 
@@ -316,10 +314,7 @@ raycast :: proc() {
             block_pos := to_vec3(global_pos)
             
             block := chunk.palette[block_key]
-            offset := get_pending_move_offset(global_pos)
-            model_bbox := get_block_bbox(block)
-            model_bbox.min += offset
-            model_bbox.max += offset
+            model_bbox := get_block_bbox(block, global_pos)
             bbox := rl.BoundingBox{block_pos + model_bbox.min, block_pos + model_bbox.max}
 
             hit := rl.GetRayCollisionBox(ray, bbox)
@@ -329,7 +324,7 @@ raycast :: proc() {
                 state.looking_at_block = true
                 state.look_target = global_pos
                 state.place_pos = block_pos + closest_hit.normal
-                state.place_target = from_vec3(state.place_pos)
+                state.place_target = to_vec3i(state.place_pos)
             }
         }
     }
@@ -397,10 +392,7 @@ draw_player_target_box :: proc() {
         pos := to_vec3(state.look_target)
         block := get_target_block()
         
-        offset := get_pending_move_offset(state.look_target)
-        bbox := get_block_bbox(block)
-        bbox.min += offset
-        bbox.max += offset
+        bbox := get_block_bbox(block, state.look_target)
         
         // Expand slightly to prevent Z-fighting with the block itself, accounting for line thickness
         t: f32 = 0.01

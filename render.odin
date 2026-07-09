@@ -177,8 +177,7 @@ draw_world_chunks :: proc() {
                     }
                 }
                 
-                offset := get_pending_move_offset(global_pos)
-                mat_transform := rl.MatrixTranslate(p.x + offset.x, p.y + offset.y, p.z + offset.z) * model_to_draw.transform
+                mat_transform := rl.MatrixTranslate(p.x, p.y, p.z) * model_to_draw.transform
                 for m_idx in 0..<model_to_draw.meshCount {
                     if model_to_draw.meshes[m_idx].vertexCount == 0 do continue
                     
@@ -190,8 +189,9 @@ draw_world_chunks :: proc() {
                     rl.SetShaderValue(block_shader, lock_uv_loc, &lock_uv, .FLOAT)
                     
                     animator := animator_init()
-                    if block_infos[block.type].animate != .None {
-                        block_animate_procs[block_infos[block.type].animate](block, &animator)
+                    if anim, ok := get_active_animation(global_pos); ok {
+                        info := animation_infos[anim.type]
+                        info.proc_(anim, &animator)
                     }
                     mesh_transform := mat_transform * animator.transforms[group]
                     

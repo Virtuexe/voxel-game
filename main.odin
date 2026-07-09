@@ -73,6 +73,7 @@ get_block_transform :: proc(block: Block) -> rl.Matrix {
 
 Vec2 :: rl.Vector2
 Vec3 :: rl.Vector3
+Vec3I :: [3]i32
 
 // Math functions moved to math.odin
 
@@ -81,7 +82,7 @@ center: [2]f32
 
 
 
-CHUNK :: [3]i32{16, 16, 16}
+CHUNK :: Vec3I{16, 16, 16}
 
 wire_model_texture: rl.Texture2D
 crosshair_texture: rl.Texture2D
@@ -153,8 +154,7 @@ update :: proc(ustate: ^UI_State) {
 
     update_ui(ustate)
     update_code()
-    world_update_scheduled_actions()
-    world_update_moves()
+    update_world()
 }
 
 draw :: proc(ustate: ^UI_State) {

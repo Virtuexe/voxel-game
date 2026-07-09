@@ -106,8 +106,8 @@ direction_to_normal :: proc(dir: Cardinal) -> Vec2 {
 Raycast_Iterator :: struct {
     t_max: [3]f32,
     t_delta: [3]f32,
-    step: [3]i32,
-    current_voxel: [3]i32,
+    step: Vec3I,
+    current_voxel: Vec3I,
     max_distance: f32,
     t: f32,
 }
@@ -145,7 +145,7 @@ make_raycast_iterator :: proc(ray_pos, ray_dir: Vec3, max_distance: f32) -> Rayc
     return it
 }
 
-raycast_iterator_next :: proc(it: ^Raycast_Iterator) -> (voxel: [3]i32, ok: bool) {
+raycast_iterator_next :: proc(it: ^Raycast_Iterator) -> (voxel: Vec3I, ok: bool) {
     if it.t > it.max_distance do return {}, false
     
     voxel = it.current_voxel

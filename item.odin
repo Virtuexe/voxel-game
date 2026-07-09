@@ -109,7 +109,7 @@ items := [Item_Type]Item_Info{
 
 wire_item_use :: proc() {
     if !state.looking_at_block do return
-    if pos, ok := state.select_block_pos.([3]i32); ok {
+    if pos, ok := state.select_block_pos.(Vec3I); ok {
         source_block := world_get_block(pos)
         target_block := world_get_block(state.look_target)
         

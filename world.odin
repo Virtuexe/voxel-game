@@ -3,33 +3,27 @@ import rl "vendor:raylib"
 import "core:math"
 
 World_State :: struct {
-    chunks: map[[3]i32]^Chunk,
-    wires: map[[3]i32][dynamic]Wire,
-    pending_moves: [dynamic]Pending_Move,
+    chunks: map[Vec3I]^Chunk,
+    wires: map[Vec3I][dynamic]Wire,
     scheduled_actions: [dynamic]Scheduled_Action,
+    animations: [dynamic]Animation_Data,
 }
 
 Scheduled_Action :: struct {
     action: Block_Action,
-    pos: [3]i32,
-    time: f64,
+    pos: Vec3I,
+    data: Action_Data,
+    time_left: f32,
 }
 
-Pending_Move :: struct {
-    from_pos: [3]i32,
-    to_pos: [3]i32,
-    start_time: f64,
-    duration: f64,
-}
 Chunk :: struct {
     palette: [dynamic]Block,
     block_keys: [16*16*16]int,
 }
 
 world_init :: proc() {
-    state.world.chunks = make(map[[3]i32]^Chunk)
-    state.world.wires = make(map[[3]i32][dynamic]Wire)
-    state.world.pending_moves = make([dynamic]Pending_Move)
+    state.world.chunks = make(map[Vec3I]^Chunk)
+    state.world.wires = make(map[Vec3I][dynamic]Wire)
     state.world.scheduled_actions = make([dynamic]Scheduled_Action)
     
     for x in -8..<8 {
@@ -91,7 +85,7 @@ chunk_clean_palette :: proc(chunk: ^Chunk) {
     chunk.palette = new_palette
 }
 
-world_get_block :: proc(pos: [3]i32) -> Block {
+world_get_block :: proc(pos: Vec3I) -> Block {
     c_pos := get_chunk_pos(pos)
     if c_pos in state.world.chunks {
         chunk := state.world.chunks[c_pos]
@@ -102,7 +96,7 @@ world_get_block :: proc(pos: [3]i32) -> Block {
     return {.Air, {}}
 }
 
-world_set_block :: proc(pos: [3]i32, block: Block) {
+world_set_block :: proc(pos: Vec3I, block: Block) {
     if !block.data.has_wires && pos in state.world.wires {
         delete(state.world.wires[pos])
         delete_key(&state.world.wires, pos)
@@ -121,7 +115,7 @@ world_set_block :: proc(pos: [3]i32, block: Block) {
     chunk.block_keys[flatten(l_pos)] = block_key
 }
 
-world_move_block :: proc(from_pos, to_pos: [3]i32) {
+world_move_block :: proc(from_pos, to_pos: Vec3I) {
     block := world_get_block(from_pos)
     
     // If the destination block has wires, those wires will be overwritten. We must free them.
@@ -140,44 +134,33 @@ world_move_block :: proc(from_pos, to_pos: [3]i32) {
     world_set_block(from_pos, Block{.Air, {}})
 }
 
-world_schedule_move :: proc(from_pos, to_pos: [3]i32, delay: f64, duration: f64) {
-    append(&state.world.pending_moves, Pending_Move{
-        from_pos = from_pos,
-        to_pos = to_pos,
-        start_time = rl.GetTime() + delay,
-        duration = duration,
-    })
-}
 
-world_update_moves :: proc() {
-    time := rl.GetTime()
-    for i := 0; i < len(state.world.pending_moves); {
-        move := state.world.pending_moves[i]
-        if time >= move.start_time + move.duration {
-            world_move_block(move.from_pos, move.to_pos)
-            unordered_remove(&state.world.pending_moves, i)
-        } else {
-            i += 1
-        }
-    }
-}
 
-world_schedule_action :: proc(action: Block_Action, pos: [3]i32, delay: f64) {
+world_schedule_action :: proc(action: Block_Action, pos: Vec3I, delay: f32, data: Action_Data = {}) {
     append(&state.world.scheduled_actions, Scheduled_Action{
         action = action,
         pos = pos,
-        time = rl.GetTime() + delay,
+        data = data,
+        time_left = delay,
     })
 }
 
-world_update_scheduled_actions :: proc() {
-    time := rl.GetTime()
+update_world :: proc() {
+    update_world_scheduled_actions()
+    update_world_animations()
+}
+update_world_scheduled_actions :: proc() {
+    delta := f32(rl.GetFrameTime())
     for i := 0; i < len(state.world.scheduled_actions); {
-        action := state.world.scheduled_actions[i]
-        if time >= action.time {
+        action := &state.world.scheduled_actions[i]
+        action.time_left -= delta
+        if action.time_left <= 0 {
+            a := action.action
+            pos := action.pos
+            data := action.data
             unordered_remove(&state.world.scheduled_actions, i)
-            if block_actions[action.action] != nil {
-                block_actions[action.action](action.pos)
+            if block_actions[a] != nil {
+                block_actions[a](pos, data)
             }
         } else {
             i += 1
@@ -185,24 +168,41 @@ world_update_scheduled_actions :: proc() {
     }
 }
 
-get_pending_move_offset :: proc(pos: [3]i32) -> rl.Vector3 {
-    time := rl.GetTime()
-    for move in state.world.pending_moves {
-        if pos == move.from_pos {
-            t := f32((time - move.start_time) / move.duration)
-            t = math.clamp(t, 0.0, 1.0)
-            return (to_vec3(move.to_pos) - to_vec3(move.from_pos)) * t
+world_play_animation :: proc(data: Animation_Data) {
+    append(&state.world.animations, data)
+}
+update_world_animations :: proc() {
+    delta := f32(rl.GetFrameTime())
+    for i := 0; i < len(state.world.animations); {
+        anim := &state.world.animations[i]
+        info := animation_infos[anim.type]
+        
+        anim.progress += delta
+        if anim.progress >= info.end {
+            unordered_remove(&state.world.animations, i)
+        } else {
+            i += 1
         }
     }
-    return {0, 0, 0}
+}
+
+
+
+get_active_animation :: proc(pos: Vec3I) -> (anim: Animation_Data, ok: bool) {
+    for a in state.world.animations {
+        if a.pos == pos {
+            return a, true
+        }
+    }
+    return {}, false
 }
 
 Player_Block_Iterator :: struct {
-    center: [3]i32,
-    curr: [3]i32,
+    center: Vec3I,
+    curr: Vec3I,
 }
 
-make_player_block_iterator :: proc(center: [3]i32) -> Player_Block_Iterator {
+make_player_block_iterator :: proc(center: Vec3I) -> Player_Block_Iterator {
     return {
         center = center,
         curr = {center.x - 1, center.y - 1, center.z - 1},
@@ -217,7 +217,7 @@ set_target_block :: proc(block: Block) {
     world_set_block(state.look_target, block)
 }
 
-player_block_iterator_next :: proc(it: ^Player_Block_Iterator) -> (block: Block, coords: [3]i32, cond: bool) {
+player_block_iterator_next :: proc(it: ^Player_Block_Iterator) -> (block: Block, coords: Vec3I, cond: bool) {
     if it.curr.x > it.center.x + 1 do return {}, {}, false
 
     coords = it.curr
