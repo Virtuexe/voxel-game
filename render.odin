@@ -199,7 +199,7 @@ draw_world_chunks :: proc() {
                 }
 
                 //Wire
-                if show_wires && block.data.has_wires {
+                if show_wires && get_block_has_wires(block) {
                     if wires, ok := state.world.wires[global_pos]; ok {
                         for wire in wires {
                             from_center := p + get_block_center(block)

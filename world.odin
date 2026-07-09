@@ -7,6 +7,8 @@ World_State :: struct {
     wires: map[Vec3I][dynamic]Wire,
     scheduled_actions: [dynamic]Scheduled_Action,
     animations: [dynamic]Animation_Data,
+    traked_blocks: map[int]Block_Tracker,
+    next_id: int
 }
 
 Scheduled_Action :: struct {
@@ -97,7 +99,7 @@ world_get_block :: proc(pos: Vec3I) -> Block {
 }
 
 world_set_block :: proc(pos: Vec3I, block: Block) {
-    if !block.data.has_wires && pos in state.world.wires {
+    if !get_block_has_wires(block) && pos in state.world.wires {
         delete(state.world.wires[pos])
         delete_key(&state.world.wires, pos)
     }
@@ -125,7 +127,7 @@ world_move_block :: proc(from_pos, to_pos: Vec3I) {
     }
     
     // Transfer wires from from_pos to to_pos
-    if block.data.has_wires && from_pos in state.world.wires {
+    if get_block_has_wires(block) && from_pos in state.world.wires {
         state.world.wires[to_pos] = state.world.wires[from_pos]
         delete_key(&state.world.wires, from_pos)
     }
@@ -195,6 +197,10 @@ get_active_animation :: proc(pos: Vec3I) -> (anim: Animation_Data, ok: bool) {
         }
     }
     return {}, false
+}
+
+Block_Tracker :: struct {
+    pos: Vec3I,
 }
 
 Player_Block_Iterator :: struct {

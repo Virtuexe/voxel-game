@@ -152,13 +152,13 @@ wire_item_right_click :: proc(item: ^Item) {
         if found_idx >= 0 {
             unordered_remove(&state.world.wires[pos], found_idx)
             if len(state.world.wires[pos]) == 0 {
-                source_block.data.has_wires = false
+                set_block_has_wires(&source_block, false)
                 world_set_block(pos, source_block)
             }
         } else {
             append(&state.world.wires[pos], target_wire)
-            if !source_block.data.has_wires {
-                source_block.data.has_wires = true
+            if !get_block_has_wires(source_block) {
+                set_block_has_wires(&source_block, true)
                 world_set_block(pos, source_block)
             }
         }

@@ -46,19 +46,19 @@ get_block_transform :: proc(block: Block) -> rl.Matrix {
     
     if .HAS_CARDINAL in info.flags && .HAS_BLOCK_FACE in info.flags {
         // Stairs
-        target_face := cardinal_to_face(block.data.direction)
+        target_face := cardinal_to_face(get_block_direction(block))
         
-        if block.data.facing == .Top {
+        if get_block_facing(block) == .Top {
             rot_mat = get_rot_from_north(target_face) * rl.MatrixRotateZ(rl.PI) * get_rot_to_north(model_data.base_facing)
         } else {
             rot_mat = get_rot_from_north(target_face) * get_rot_to_north(model_data.base_facing)
         }
     } else if .HAS_BLOCK_FACE in info.flags {
         // 6-way block (Piston)
-        rot_mat = get_rot_from_north(block.data.facing) * get_rot_to_north(model_data.base_facing)
+        rot_mat = get_rot_from_north(get_block_facing(block)) * get_rot_to_north(model_data.base_facing)
     } else if .HAS_CARDINAL in info.flags {
         // 4-way block
-        target_face := cardinal_to_face(block.data.direction)
+        target_face := cardinal_to_face(get_block_direction(block))
         rot_mat = get_rot_from_north(target_face) * get_rot_to_north(model_data.base_facing)
     }
     
