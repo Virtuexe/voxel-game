@@ -1,19 +1,25 @@
 package voxel_game
 import rl "vendor:raylib"
 import "core:math"
+import "core:fmt"
 
 World_State :: struct {
     chunks: map[Vec3I]^Chunk,
     wires: map[Vec3I][dynamic]Wire,
     scheduled_actions: [dynamic]Scheduled_Action,
-    animations: [dynamic]Animation_Data,
+    animations: map[int]Block_Animations,
     traked_blocks: map[int]Block_Tracker,
     next_id: int
 }
 
+Block_Animations :: struct {
+    count: int,
+    list: [4]Animation_Data,
+}
+
 Scheduled_Action :: struct {
     action: Block_Action,
-    pos: Vec3I,
+    block_id: int,
     data: Action_Data,
     time_left: f32,
 }
@@ -27,6 +33,8 @@ world_init :: proc() {
     state.world.chunks = make(map[Vec3I]^Chunk)
     state.world.wires = make(map[Vec3I][dynamic]Wire)
     state.world.scheduled_actions = make([dynamic]Scheduled_Action)
+    state.world.traked_blocks = make(map[int]Block_Tracker)
+    state.world.animations = make(map[int]Block_Animations)
     
     for x in -8..<8 {
         for z in -8..<8 {
@@ -99,11 +107,6 @@ world_get_block :: proc(pos: Vec3I) -> Block {
 }
 
 world_set_block :: proc(pos: Vec3I, block: Block) {
-    if !get_block_has_wires(block) && pos in state.world.wires {
-        delete(state.world.wires[pos])
-        delete_key(&state.world.wires, pos)
-    }
-    
     c_pos := get_chunk_pos(pos)
     if c_pos not_in state.world.chunks {
         chunk := new(Chunk)
@@ -115,6 +118,13 @@ world_set_block :: proc(pos: Vec3I, block: Block) {
     l_pos := get_local_pos(pos)
     block_key := chunk_provide_block_key(chunk, block)
     chunk.block_keys[flatten(l_pos)] = block_key
+}
+
+world_delete_block :: proc(pos: Vec3I) {
+    if id, ok := world_get_tracker_id(pos); ok {
+        delete_key(&state.world.traked_blocks, id)
+    }
+    world_set_block(pos, Block{.Air, {}})
 }
 
 world_move_block :: proc(from_pos, to_pos: Vec3I) {
@@ -132,22 +142,31 @@ world_move_block :: proc(from_pos, to_pos: Vec3I) {
         delete_key(&state.world.wires, from_pos)
     }
     
+    // Update pos of active tracker if this block is tracked
+    for id, &t in state.world.traked_blocks {
+        if t.pos == from_pos {
+            t.pos = to_pos
+        }
+    }
+    
     world_set_block(to_pos, block)
-    world_set_block(from_pos, Block{.Air, {}})
+    world_delete_block(from_pos)
 }
 
 
 
 world_schedule_action :: proc(action: Block_Action, pos: Vec3I, delay: f32, data: Action_Data = {}) {
+    id := world_track_block(pos)
     append(&state.world.scheduled_actions, Scheduled_Action{
         action = action,
-        pos = pos,
+        block_id = id,
         data = data,
         time_left = delay,
     })
 }
 
 update_world :: proc() {
+    fmt.println("Tracked blocks:", len(state.world.traked_blocks))
     update_world_scheduled_actions()
     update_world_animations()
 }
@@ -158,49 +177,106 @@ update_world_scheduled_actions :: proc() {
         action.time_left -= delta
         if action.time_left <= 0 {
             a := action.action
-            pos := action.pos
+            id := action.block_id
             data := action.data
             unordered_remove(&state.world.scheduled_actions, i)
             if block_actions[a] != nil {
-                block_actions[a](pos, data)
+                if id in state.world.traked_blocks {
+                    block_actions[a](state.world.traked_blocks[id].pos, data)
+                }
             }
+            world_untrack_block(id)
         } else {
             i += 1
         }
     }
 }
 
-world_play_animation :: proc(data: Animation_Data) {
-    append(&state.world.animations, data)
+world_play_animation :: proc(type: Animation_Type, pos: Vec3I, from: Vec3I = {}) {
+    id := world_track_block(pos)
+    
+    if id not_in state.world.animations {
+        state.world.animations[id] = Block_Animations{}
+    }
+    
+    anims := state.world.animations[id]
+    if anims.count < 4 {
+        anims.list[anims.count] = Animation_Data{
+            type = type,
+            block_id = id,
+            progress = 0,
+            from = from,
+        }
+        anims.count += 1
+        state.world.animations[id] = anims
+    }
 }
 update_world_animations :: proc() {
     delta := f32(rl.GetFrameTime())
-    for i := 0; i < len(state.world.animations); {
-        anim := &state.world.animations[i]
-        info := animation_infos[anim.type]
-        
-        anim.progress += delta
-        if anim.progress >= info.end {
-            unordered_remove(&state.world.animations, i)
-        } else {
-            i += 1
+    
+    untrack_list := make([dynamic]int, context.temp_allocator)
+    
+    for id, &anims in state.world.animations {
+        for i := 0; i < anims.count; {
+            anim := &anims.list[i]
+            info := animation_infos[anim.type]
+            
+            anim.progress += delta
+            if anim.progress >= info.end {
+                anims.list[i] = anims.list[anims.count - 1]
+                anims.count -= 1
+                append(&untrack_list, id)
+            } else {
+                i += 1
+            }
         }
     }
-}
-
-
-
-get_active_animation :: proc(pos: Vec3I) -> (anim: Animation_Data, ok: bool) {
-    for a in state.world.animations {
-        if a.pos == pos {
-            return a, true
+    
+    for id in untrack_list {
+        world_untrack_block(id)
+        if state.world.animations[id].count == 0 {
+            delete_key(&state.world.animations, id)
         }
     }
-    return {}, false
 }
 
 Block_Tracker :: struct {
     pos: Vec3I,
+    ref_count: int,
+}
+
+world_track_block :: proc(pos: Vec3I) -> int {
+    for id, &t in state.world.traked_blocks {
+        if t.pos == pos {
+            t.ref_count += 1
+            return id
+        }
+    }
+    
+    state.world.next_id += 1
+    id := state.world.next_id
+    state.world.traked_blocks[id] = Block_Tracker{pos = pos, ref_count = 1}
+    return id
+}
+
+world_get_tracker_id :: proc(pos: Vec3I) -> (id: int, ok: bool) {
+    for tracker_id, t in state.world.traked_blocks {
+        if t.pos == pos {
+            return tracker_id, true
+        }
+    }
+    return 0, false
+}
+
+world_untrack_block :: proc(id: int) {
+    if id not_in state.world.traked_blocks do return
+    t := state.world.traked_blocks[id]
+    t.ref_count -= 1
+    if t.ref_count <= 0 {
+        delete_key(&state.world.traked_blocks, id)
+    } else {
+        state.world.traked_blocks[id] = t
+    }
 }
 
 Player_Block_Iterator :: struct {

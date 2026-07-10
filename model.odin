@@ -64,7 +64,7 @@ init_models :: proc() {
             
             // Inverted head centered at the tip
             builder_add_inverted_box(&b, px_vec({6.5, 7.5, 6.5}), px_vec({9.5, 10.5, 9.5}), {}, 1, tex_info.uv_rotations[1], tex_info.uv_rects[1])
-            builder_set_center(&b, {0.5, 0.0, 0.5})
+            builder_set_center(&b, px_vec({8, 5, 8}))
             facing = .Top
         }
         
@@ -122,9 +122,14 @@ get_block_bbox :: proc(block: Block, pos: Vec3I) -> rl.BoundingBox {
     rot_mat := get_block_transform(block)
     
     animator := animator_init()
-    if anim, ok := get_active_animation(pos); ok {
-        info := animation_infos[anim.type]
-        info.proc_(anim, &animator)
+    if id, ok := world_get_tracker_id(pos); ok {
+        if anims, ok := state.world.animations[id]; ok {
+            for i in 0..<anims.count {
+                anim := anims.list[i]
+                info := animation_infos[anim.type]
+                info.proc_(anim, &animator)
+            }
+        }
     }
     new_min := rl.Vector3{99999, 99999, 99999}
     new_max := rl.Vector3{-99999, -99999, -99999}
@@ -180,9 +185,14 @@ get_block_bboxes :: proc(block: Block, buf: ^[8]rl.BoundingBox, pos: Vec3I) -> [
     rot := get_block_transform(block)
     
     animator := animator_init()
-    if anim, ok := get_active_animation(pos); ok {
-        info := animation_infos[anim.type]
-        info.proc_(anim, &animator)
+    if id, ok := world_get_tracker_id(pos); ok {
+        if anims, ok := state.world.animations[id]; ok {
+            for i in 0..<anims.count {
+                anim := anims.list[i]
+                info := animation_infos[anim.type]
+                info.proc_(anim, &animator)
+            }
+        }
     }
     count := 0
     for part in model_data.parts {

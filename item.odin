@@ -140,7 +140,8 @@ wire_item_right_click :: proc(item: ^Item) {
             state.world.wires[pos] = make([dynamic]Wire)
         }
         
-        target_wire := Wire{state.look_target}
+        target_id := world_track_block(state.look_target)
+        target_wire := Wire{target_id}
         found_idx := -1
         for a, i in state.world.wires[pos] {
             if a == target_wire {
@@ -151,6 +152,8 @@ wire_item_right_click :: proc(item: ^Item) {
         
         if found_idx >= 0 {
             unordered_remove(&state.world.wires[pos], found_idx)
+            world_untrack_block(target_id) // Untrack from removal
+            world_untrack_block(target_id) // Untrack from temporary lookup track
             if len(state.world.wires[pos]) == 0 {
                 set_block_has_wires(&source_block, false)
                 world_set_block(pos, source_block)

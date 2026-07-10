@@ -149,11 +149,13 @@ activate_wired_blocks :: proc(pos: Vec3I, data: Action_Data) {
     
     if wires, ok := state.world.wires[pos]; ok {
         for wire in wires {
-            target_pos := wire.to
-            target_block := world_get_block(target_pos)
-            info := block_infos[target_block.type]
-            if info.on_activate.type != .None {
-                block_actions[info.on_activate.type](target_pos, info.on_activate.data)
+            if tracker, exists := state.world.traked_blocks[wire.to]; exists {
+                target_pos := tracker.pos
+                target_block := world_get_block(target_pos)
+                info := block_infos[target_block.type]
+                if info.on_activate.type != .None {
+                    block_actions[info.on_activate.type](target_pos, info.on_activate.data)
+                }
             }
         }
     }
@@ -165,11 +167,13 @@ deactivate_wired_blocks :: proc(pos: Vec3I, data: Action_Data) {
     
     if wires, ok := state.world.wires[pos]; ok {
         for wire in wires {
-            target_pos := wire.to
-            target_block := world_get_block(target_pos)
-            info := block_infos[target_block.type]
-            if info.on_deactivate.type != .None {
-                block_actions[info.on_deactivate.type](target_pos, info.on_deactivate.data)
+            if tracker, exists := state.world.traked_blocks[wire.to]; exists {
+                target_pos := tracker.pos
+                target_block := world_get_block(target_pos)
+                info := block_infos[target_block.type]
+                if info.on_deactivate.type != .None {
+                    block_actions[info.on_deactivate.type](target_pos, info.on_deactivate.data)
+                }
             }
         }
     }
@@ -179,7 +183,7 @@ button_activate :: proc(pos: Vec3I, data: Action_Data) {
     block := world_get_block(pos)
     if block.data.button.on do return
     block.data.button.on = true
-    world_play_animation({type=.Button, pos=pos})
+    world_play_animation(.Button, pos)
     world_set_block(pos, block)
     activate_wired_blocks(pos, {})
     world_schedule_action(.Button_Deactivate, pos, animation_infos[.Button].end)
@@ -223,14 +227,14 @@ piston_activate :: proc(pos: Vec3I, data: Action_Data) {
 
     if target_block.type != .Air && destination_block.type == .Air {
         world_move_block(pos+v, pos+v*2)
-        world_play_animation({type=.Move, pos=pos+v*2, from=pos+v})
+        world_play_animation(.Move, pos+v*2, pos+v)
         world_schedule_action(.Piston_Deactivate, pos, animation_infos[.Piston_Push].end, {pushed_block = true})
     }
     else {
         world_schedule_action(.Piston_Deactivate, pos, animation_infos[.Piston_Push].end, {pushed_block = false})
     }
 
-    world_play_animation({type=.Piston_Push, pos=pos})
+    world_play_animation(.Piston_Push, pos)
 }
 piston_deactivate :: proc(pos: Vec3I, data: Action_Data) {
     piston_block := world_get_block(pos)
@@ -243,11 +247,11 @@ piston_deactivate :: proc(pos: Vec3I, data: Action_Data) {
     target_block := world_get_block(pos+v*2)
     if target_block.type != .Air && destination_block.type == .Air && !data.pushed_block {
         world_move_block(pos+v*2, pos+v)
-        world_play_animation({type=.Move, pos=pos+v, from=pos+v*2})
+        world_play_animation(.Move, pos+v, pos+v*2)
     }
 
     world_schedule_action(.Piston_Deactivate_Off, pos, animation_infos[.Piston_Pull].end)
-    world_play_animation({type=.Piston_Pull, pos=pos})
+    world_play_animation(.Piston_Pull, pos)
 }
 piston_deactivate_off :: proc(pos: Vec3I, data: Action_Data) {
     piston_block := world_get_block(pos)
@@ -304,7 +308,7 @@ Wired_Data :: struct {
     has_wires: bool,
 }
 Wire :: struct {
-    to: Vec3I
+    to: int
 }
 
 are_blocks_equal :: proc(a, b: Block) -> bool {

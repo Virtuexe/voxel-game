@@ -210,7 +210,7 @@ update_player :: proc(delta: f32) {
                 }
             }
             if !handled_by_item && state.looking_at_block {
-                set_target_block(Block{.Air, {}})
+                world_delete_block(state.look_target)
                 raycast()
             }
         }
@@ -431,14 +431,16 @@ draw_player_target_box :: proc() {
             
             if wires, ok := state.world.wires[pos]; ok {
                 for wire in wires {
-                    c_pos := wire.to
-                    c_block := world_get_block(c_pos)
-                    c_bbox := get_block_bbox(c_block, c_pos)
-                    
-                    c_bbox.min += to_vec3(c_pos) - epsilon
-                    c_bbox.max += to_vec3(c_pos) + epsilon
-                    
-                    draw_bounding_box_thick(c_bbox, t, rl.RED)
+                    if tracker, exists := state.world.traked_blocks[wire.to]; exists {
+                        c_pos := tracker.pos
+                        c_block := world_get_block(c_pos)
+                        c_bbox := get_block_bbox(c_block, c_pos)
+                        
+                        c_bbox.min += to_vec3(c_pos) - epsilon
+                        c_bbox.max += to_vec3(c_pos) + epsilon
+                        
+                        draw_bounding_box_thick(c_bbox, t, rl.RED)
+                    }
                 }
             }
         }

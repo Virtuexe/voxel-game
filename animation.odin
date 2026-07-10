@@ -28,14 +28,14 @@ animation_infos := [Animation_Type]Animation_Info{
     },
     .Button = {
         proc_ = animate_button,
-        end = 0.5,
+        end = 2.1,
     }
 
 }
 
 Animation_Data :: struct {
     type: Animation_Type,
-    pos: Vec3I,
+    block_id: int,
     progress: f32,
     from: Vec3I, //used by block .Move
 }
@@ -75,10 +75,11 @@ animate_move :: proc(data: Animation_Data, a: ^Animator) {
     progress := data.progress / info.end
     if progress > 1 do progress = 1
     
+    pos := state.world.traked_blocks[data.block_id].pos
     offset := [3]f32{
-        f32(data.from.x - data.pos.x),
-        f32(data.from.y - data.pos.y),
-        f32(data.from.z - data.pos.z),
+        f32(data.from.x - pos.x),
+        f32(data.from.y - pos.y),
+        f32(data.from.z - pos.z),
     } * (1.0 - progress)
     
     for i in 0..<MAX_TEXTURE_GROUPS {

@@ -177,9 +177,14 @@ draw_world_chunks :: proc() {
                     }
                 }
                 animator := animator_init()
-                if anim, ok := get_active_animation(global_pos); ok {
-                    info := animation_infos[anim.type]
-                    info.proc_(anim, &animator)
+                if id, ok := world_get_tracker_id(global_pos); ok {
+                    if anims, ok := state.world.animations[id]; ok {
+                        for i in 0..<anims.count {
+                            anim := anims.list[i]
+                            info := animation_infos[anim.type]
+                            info.proc_(anim, &animator)
+                        }
+                    }
                 }
                 
                 for m_idx in 0..<model_to_draw.meshCount {
@@ -203,12 +208,14 @@ draw_world_chunks :: proc() {
                     if wires, ok := state.world.wires[global_pos]; ok {
                         for wire in wires {
                             from_center := p + get_block_center(block)
-                            target_block := world_get_block(wire.to)
-                            to_center   := to_vec3(wire.to) + get_block_center(target_block)
-                            diff        := to_center - from_center
-                            total_dist  := linalg.length(diff)
-                            if total_dist > 0.001 {
-                                dir       := diff / total_dist
+                            if tracker, exists := state.world.traked_blocks[wire.to]; exists {
+                                target_pos := tracker.pos
+                                target_block := world_get_block(target_pos)
+                                to_center   := to_vec3(target_pos) + get_block_center(target_block)
+                                diff        := to_center - from_center
+                                total_dist  := linalg.length(diff)
+                                if total_dist > 0.001 {
+                                    dir       := diff / total_dist
                                 tile_size : f32 = 0.5
                                 num_tiles := int(total_dist / tile_size)
                                 step      := total_dist / f32(max(num_tiles, 1))
@@ -243,6 +250,7 @@ draw_world_chunks :: proc() {
                                 rlgl.End()
                                 rlgl.SetTexture(0)
                                 rlgl.EnableBackfaceCulling()
+                            }
                             }
                         }
                     }
