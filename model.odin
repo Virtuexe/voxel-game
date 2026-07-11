@@ -30,7 +30,7 @@ init_models :: proc() {
         info := block_infos[type]
         tex_info := block_infos[type].texture
         b := builder_init()
-        facing := build_block_geometry(&b, Block{type, {}})
+        facing := build_block_geometry(&b, Block{type = type})
         
         m := builder_build(&b, facing)
         

@@ -161,13 +161,13 @@ wire_item_right_click :: proc(item: ^Item) {
             world_untrack_block(target_id) // Untrack from removal
             world_untrack_block(target_id) // Untrack from temporary lookup track
             if len(state.world.wires[pos]) == 0 {
-                set_block_has_wires(&source_block, false)
+                source_block.has_wires = false
                 world_set_block(pos, source_block)
             }
         } else {
             append(&state.world.wires[pos], target_wire)
-            if !get_block_has_wires(source_block) {
-                set_block_has_wires(&source_block, true)
+            if !source_block.has_wires {
+                source_block.has_wires = true
                 world_set_block(pos, source_block)
             }
         }

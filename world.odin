@@ -43,11 +43,11 @@ world_init :: proc() {
     size := 256
     for x in -size..<size {
         for z in -size..<size {
-            world_set_block({i32(x), 0, i32(z)}, Block{.Stone, {}})
-            world_set_block({i32(x), 1, i32(z)}, Block{.Dirt, {}})
+            world_set_block({i32(x), 0, i32(z)}, Block{type = .Stone})
+            world_set_block({i32(x), 1, i32(z)}, Block{type = .Dirt})
         }
     }
-    world_set_block({0, 1, 0}, Block{.Cobblestone, {}})
+    world_set_block({0, 1, 0}, Block{type = .Cobblestone})
 }
 
 //Returns the block id from palette. If the block is not present it will get created.
@@ -109,7 +109,8 @@ world_get_block :: proc(pos: Vec3I) -> Block {
         block_key := chunk.block_keys[flatten(l_pos)]
         return chunk.palette[block_key]
     }
-    return {.Air, {}}
+    if pos.y < 0 || pos.y >= CHUNK.y do return Block{type = .Air}
+    return Block{type = .Air}
 }
 
 world_set_block :: proc(pos: Vec3I, block: Block) {
@@ -118,7 +119,7 @@ world_set_block :: proc(pos: Vec3I, block: Block) {
         chunk := new(Chunk)
         chunk.palette = make([dynamic]Block)
         chunk.dynamic_blocks = make([dynamic]int)
-        append(&chunk.palette, Block{.Air, {}})
+        append(&chunk.palette, Block{type = .Air})
         state.world.chunks[c_pos] = chunk
     }
     chunk := state.world.chunks[c_pos]
@@ -149,7 +150,7 @@ world_delete_block :: proc(pos: Vec3I) {
         delete_key(&state.world.wires, pos)
     }
     
-    world_set_block(pos, Block{.Air, {}})
+    world_set_block(pos, Block{type = .Air})
 }
 
 world_move_block :: proc(from_pos, to_pos: Vec3I) {
@@ -162,7 +163,7 @@ world_move_block :: proc(from_pos, to_pos: Vec3I) {
     }
     
     // Transfer wires from from_pos to to_pos
-    if get_block_has_wires(block) && from_pos in state.world.wires {
+    if block.has_wires && from_pos in state.world.wires {
         state.world.wires[to_pos] = state.world.wires[from_pos]
         delete_key(&state.world.wires, from_pos)
     }
@@ -325,7 +326,7 @@ set_target_block :: proc(block: Block) {
 }
 
 player_block_iterator_next :: proc(it: ^Player_Block_Iterator) -> (block: Block, coords: Vec3I, cond: bool) {
-    if it.curr.x > it.center.x + 1 do return {}, {}, false
+    if it.curr.x > it.center.x + 1 do return Block{type = .Air}, {}, false
 
     coords = it.curr
     block = world_get_block(coords)

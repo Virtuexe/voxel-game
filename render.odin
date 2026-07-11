@@ -178,7 +178,7 @@ draw_world_chunks :: proc() {
             
             if block.type == .Redstone {
                 redstone := block.data.redstone
-                redstone_tex := get_redstone_texture(redstone.on, redstone.connections).texture
+                redstone_tex := get_redstone_texture(block.is_on, redstone.connections).texture
                 for i in 0..<MAX_TEXTURE_GROUPS * 6 {
                     rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, redstone_tex)
                 }
@@ -188,7 +188,7 @@ draw_world_chunks :: proc() {
                     face := Block_Face(i % 6)
                     t_type := tex_info.textures[group][face]
                     
-                    if block.type == .Torch && t_type == .Torch_On && !block.data.torch.on {
+                    if block.type == .Torch && t_type == .Torch_On && !block.is_on {
                         t_type = .Torch_Off
                     }
                     
@@ -225,7 +225,7 @@ draw_world_chunks :: proc() {
             }
 
             //Wire
-            if show_wires && get_block_has_wires(block) {
+            if show_wires && block.has_wires {
                 if wires, ok := state.world.wires[global_pos]; ok {
                     for wire in wires {
                         from_center := p + get_block_center(block)
