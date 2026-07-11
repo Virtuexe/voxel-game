@@ -140,6 +140,15 @@ world_delete_block :: proc(pos: Vec3I) {
     if id, ok := world_get_tracker_id(pos); ok {
         delete_key(&state.world.traked_blocks, id)
     }
+    
+    if wires, ok := state.world.wires[pos]; ok {
+        for wire in wires {
+            world_untrack_block(wire.to)
+        }
+        delete(state.world.wires[pos])
+        delete_key(&state.world.wires, pos)
+    }
+    
     world_set_block(pos, Block{.Air, {}})
 }
 
