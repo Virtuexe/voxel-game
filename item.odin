@@ -4,7 +4,7 @@ import ui "raylib-ui"
 
 Item_Type :: enum {
     Dirt, Stone, Cobblestone, Glass, Planks,
-    Redstone, Slab, Stairs, Piston,
+    Slab, Stairs, Piston,
     Wire, Button, Torch, Lever,
 }
 
@@ -73,12 +73,6 @@ items := [Item_Type]Item_Info{
         block = .Planks,
         name = "Planks",
         texture = .Planks,
-        on_right_click = .Block_Place,
-    },
-    .Redstone = {
-        block = .Redstone,
-        name = "Redstone",
-        texture = .Wire,
         on_right_click = .Block_Place,
     },
     .Slab = {
@@ -191,11 +185,6 @@ block_place :: proc(item: ^Item) {
     block := Block{type=block_type}
     if is_overlapping(state.position, state.place_target, block) do return
     if world_get_block(state.place_target).type != .Air do return
-    #partial switch block.type {
-    case .Redstone:
-        place_redstone()
-    case:
-        place_base_block(block)
-    }
+    place_base_block(block)
     raycast()
 }

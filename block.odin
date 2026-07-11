@@ -4,11 +4,11 @@ import "core:fmt"
 
 
 
-redstone_render_texture: [(1<<len(Cardinal))*2]rl.RenderTexture2D
+
 
 Block_Type :: enum {
     Air, Dirt, Stone, Cobblestone, Glass, Planks,
-    Redstone, Slab, Stairs, Piston, Button, Torch,
+    Slab, Stairs, Piston, Button, Torch,
     Lever,
 }
 
@@ -99,11 +99,7 @@ block_infos := [Block_Type]Block_Info {
         item = .Planks,
         model = .Cube,
     },
-    .Redstone = {
-        flags = {.TEXTURE_TRANSPARENT, .STATEFUL, .NO_COLLISION},
-        item = .Redstone,
-        model = .Decal,
-    },
+
     .Slab = {
         flags = {.HAS_BLOCK_FACE},
         item = .Slab,
@@ -275,10 +271,6 @@ Block :: struct {
     using data: Block_Data,
 }
 Block_Data :: struct #raw_union {
-    redstone: Redstone,
-}
-Redstone :: struct {
-    connections: [Cardinal]bool,
 }
 Wire :: struct {
     to: int
@@ -291,10 +283,6 @@ are_blocks_equal :: proc(a, b: Block) -> bool {
     if a.has_wires != b.has_wires do return false
     if a.is_on != b.is_on do return false
     
-    #partial switch a.type {
-    case .Redstone:
-        return a.data.redstone == b.data.redstone
-    }
     return true
 }
 
@@ -319,20 +307,4 @@ place_base_block :: proc(block: Block) {
     }
     
     world_set_block(state.place_target, block)
-}
-place_redstone :: proc() {
-    pos1 := state.place_pos
-    pos2 := pos1 + state.place_dir_normal
-    pos1_i := state.place_target
-    pos2_i := to_vec3i(pos2)
-    dir1 := state.place_dir
-    dir2 := normal_to_direction(-state.place_dir_normal_2d)
-
-    redstone := Block{.Redstone, .North, .North, false, false, {redstone={}}}
-    redstone.data.redstone.connections[dir1] = true
-    world_set_block(pos1_i, redstone)
-
-    redstone2 := Block{.Redstone, .North, .North, false, false, {redstone={}}}
-    redstone2.data.redstone.connections[dir2] = true
-    world_set_block(pos2_i, redstone2)
-}
+}

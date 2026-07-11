@@ -110,9 +110,7 @@ main :: proc() {
     }
 
     rl.UnloadTexture(crosshair_texture)
-    for texture in redstone_render_texture {
-        rl.UnloadRenderTexture(texture)
-    }
+
     for &data in block_models {
         if data.model.meshCount > 0 {
             rl.UnloadModel(data.model)
@@ -133,7 +131,6 @@ init :: proc(ustate: ^UI_State) {
     init_textures()
     init_shaders()
     block_init()
-    gen_redstone_textures()
 
     world_init()
 

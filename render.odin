@@ -76,61 +76,6 @@ init_shaders :: proc() {
 
 
 
-gen_redstone_textures :: proc() {
-    for &texture, state in redstone_render_texture {
-        is_on := (state & (1 << len(Cardinal))) != 0
-        connections: [Cardinal]bool
-        for _, dir_index in Cardinal {
-            has_dir := (state & (1 << uint(dir_index))) != 0
-            connections[Cardinal(dir_index)] = has_dir
-        }
-        texture = gen_redstone_texture(is_on, connections)
-    }
-}
-
-gen_redstone_texture :: proc(on: bool, connections: [Cardinal]bool) -> rl.RenderTexture2D {
-    dot: rl.Texture2D
-    wire: rl.Texture2D
-    if on {
-        dot = rl.LoadTexture("assets/redstone_dot_on.png")
-        wire = rl.LoadTexture("assets/redstone_wire_on.png")
-    }
-    else {
-        dot = rl.LoadTexture("assets/redstone_dot_off.png")
-        wire = rl.LoadTexture("assets/redstone_dot_off.png")
-    }
-    result := rl.LoadRenderTexture(16, 16)
-    rec := rl.Rectangle{0,0,16,16}
-    rl.BeginTextureMode(result)
-    rl.DrawTextureRec(dot, rec, {0,0}, rl.WHITE)
-    for connection, dir in connections {
-        if connection == false do continue
-        rot: f32
-        switch dir {
-        case .North: rot = 180
-        case .South: rot = 0
-        case .East: rot = 90
-        case .West: rot = 270
-        }
-        rl.DrawTexturePro(wire, rec, {8,8,16,16}, {8, 8}, rot, rl.WHITE)
-    }
-    rl.EndTextureMode()
-    rl.UnloadTexture(dot)
-    rl.UnloadTexture(wire)
-    return result
-}
-
-get_redstone_texture :: proc(on: bool, connections: [Cardinal]bool) -> rl.RenderTexture2D {
-    state := int(on) * (1 << len(Cardinal))
-    
-    for connected, dir in connections {
-        if connected {
-            state |= (1 << uint(dir))
-        }
-    }
-    
-    return redstone_render_texture[state]
-}
 
 draw_world_chunks :: proc() {
     show_wires := false
@@ -176,26 +121,18 @@ draw_world_chunks :: proc() {
             p := to_vec3(global_pos)
             model_to_draw := get_block_model(block)
             
-            if block.type == .Redstone {
-                redstone := block.data.redstone
-                redstone_tex := get_redstone_texture(block.is_on, redstone.connections).texture
-                for i in 0..<MAX_TEXTURE_GROUPS * 6 {
-                    rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, redstone_tex)
+            for i in 0..<MAX_TEXTURE_GROUPS * 6 {
+                group := i / 6
+                face := Block_Face(i % 6)
+                t_type := tex_info.textures[group][face]
+                
+                if block.type == .Torch && t_type == .Torch_On && !block.is_on {
+                    t_type = .Torch_Off
                 }
-            } else {
-                for i in 0..<MAX_TEXTURE_GROUPS * 6 {
-                    group := i / 6
-                    face := Block_Face(i % 6)
-                    t_type := tex_info.textures[group][face]
-                    
-                    if block.type == .Torch && t_type == .Torch_On && !block.is_on {
-                        t_type = .Torch_Off
-                    }
-                    
-                    t := textures[t_type]
-                    // We only have active meshes mapped properly if their material matches
-                    rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, t)
-                }
+                
+                t := textures[t_type]
+                // We only have active meshes mapped properly if their material matches
+                rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, t)
             }
             animator := animator_init()
             if id, ok := world_get_tracker_id(global_pos); ok {

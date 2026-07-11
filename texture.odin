@@ -119,8 +119,7 @@ init_block_textures :: proc() {
         case .Button:
             texture.textures[0] = fill_textures(.Stone)
             texture.lock_uv_y[0] = fill_lock_uv_y(true)
-        case .Redstone:
-            // Redstone texture is handled procedurally based on connections
+
         case .Torch:
             // Group 0: Main Stick
             texture.textures[0] = fill_textures(.Torch_On)
