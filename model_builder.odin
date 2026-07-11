@@ -21,6 +21,19 @@ builder_set_center :: proc(b: ^Block_Model_Builder, center: Vec3) {
     b.center = center
 }
 
+builder_clear :: proc(b: ^Block_Model_Builder) {
+    for i in 0..<MAX_TEXTURE_GROUPS * 6 {
+        clear(&b.positions[i])
+        clear(&b.normals[i])
+        clear(&b.texcoords[i])
+        clear(&b.indices[i])
+    }
+    for i in 0..<MAX_TEXTURE_GROUPS {
+        clear(&b.collision_bboxes[i])
+    }
+    b.center = {0.5, 0.5, 0.5}
+}
+
 px_vec :: proc(v: Vec3) -> Vec3 {
     return v / 16.0
 }
@@ -218,6 +231,49 @@ builder_add_box :: proc(b: ^Block_Model_Builder, min_p, max_p: [3]f32, excluded_
     if .East not_in excluded_faces   do builder_add_quad(b, .East,   {max_p.x, min_p.y, min_p.z}, {max_p.x, max_p.y, max_p.z}, group, uv_rotations[.East], uv_rects[.East])
     if .West not_in excluded_faces   do builder_add_quad(b, .West,   {min_p.x, min_p.y, min_p.z}, {min_p.x, max_p.y, max_p.z}, group, uv_rotations[.West], uv_rects[.West])
     builder_add_collision_box(b, group, min_p, max_p)
+}
+
+build_block_geometry :: proc(b: ^Block_Model_Builder, block: Block, excluded_faces: bit_set[Block_Face] = {}) -> Block_Face {
+    info := block_infos[block.type]
+    tex_info := info.texture
+    facing := Block_Face.North
+    
+    switch info.model {
+    case .Cube:
+        builder_add_box(b, {0, 0, 0}, {1, 1, 1}, excluded_faces, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+    case .Slab:
+        builder_add_box(b, {0, 0, 0}, {1, 0.5, 1}, excluded_faces, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+        builder_set_center(b, {0.5, 0.25, 0.5})
+        facing = .Top
+    case .Decal:
+        if !(.Top in excluded_faces) {
+            builder_add_quad(b, .Top, {0, 0.001, 0}, {1, 0.001, 1}, 0, tex_info.uv_rotations[0][.Top], tex_info.uv_rects[0][.Top])
+        }
+        builder_add_collision_box(b, 0, {0, 0, 0}, {1, 0.01, 1})
+        builder_set_center(b, {0.5, 0.0, 0.5})
+    case .Stairs:
+        builder_add_box(b, {0, 0, 0}, {1, 0.5, 1}, excluded_faces + {.Top}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+        if !(.Top in excluded_faces) {
+            builder_add_quad(b, .Top, {0, 0.5, 0}, {1, 0.5, 0.5}, 0, tex_info.uv_rotations[0][.Top], tex_info.uv_rects[0][.Top])
+        }
+        builder_add_box(b, {0, 0.5, 0.5}, {1, 1, 1}, excluded_faces + {.Bottom}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+    case .Piston:
+        builder_add_box(b, {0, 0, 0}, {1, 0.75, 1}, excluded_faces, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+        builder_add_box(b, {0.375, 0, 0.375}, {0.625, 0.75, 0.625}, excluded_faces + {.Bottom, .Top}, 1, tex_info.uv_rotations[1], tex_info.uv_rects[1])
+        builder_add_box(b, {0, 0.75, 0}, {1, 1, 1}, excluded_faces, 2, tex_info.uv_rotations[2], tex_info.uv_rects[2])
+        builder_set_center(b, {0.5, 0.5, 0.5})
+        facing = .Top
+    case .Button:
+        builder_add_box(b, {0.3, 0.4, 0.9}, {0.7, 0.6, 1}, excluded_faces + {.South})
+        builder_set_center(b, {0.5, 0.5, 1})
+    case .Torch:
+        builder_add_box(b, px_vec({7, 0, 7}), px_vec({9, 10, 9}), excluded_faces, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+        builder_add_inverted_box(b, px_vec({6.5, 7.5, 6.5}), px_vec({9.5, 10.5, 9.5}), excluded_faces, 1, tex_info.uv_rotations[1], tex_info.uv_rects[1])
+        builder_set_center(b, px_vec({8, 5, 8}))
+        facing = .Top
+    }
+    
+    return facing
 }
 
 builder_add_inverted_quad :: proc(b: ^Block_Model_Builder, face: Block_Face, min_p, max_p: [3]f32, group: int = 0, uv_rot: UV_Rotation = .Deg_0, uv_rect: UV_Rect = {}) {

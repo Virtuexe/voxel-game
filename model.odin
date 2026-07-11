@@ -30,43 +30,7 @@ init_models :: proc() {
         info := block_infos[type]
         tex_info := block_infos[type].texture
         b := builder_init()
-        facing := Block_Face.North
-        
-        switch info.model {
-        case .Cube:
-            builder_add_box(&b, {0, 0, 0}, {1, 1, 1}, {}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
-        case .Slab:
-            builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
-            builder_set_center(&b, {0.5, 0.25, 0.5})
-            facing = .Top
-        case .Decal:
-            builder_add_quad(&b, .Top, {0, 0.001, 0}, {1, 0.001, 1}, 0, tex_info.uv_rotations[0][.Top], tex_info.uv_rects[0][.Top])
-            builder_add_collision_box(&b, 0, {0, 0, 0}, {1, 0.01, 1})
-            builder_set_center(&b, {0.5, 0.0, 0.5})
-        case .Stairs:
-            builder_add_box(&b, {0, 0, 0}, {1, 0.5, 1}, {.Top}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
-            builder_add_quad(&b, .Top, {0, 0.5, 0}, {1, 0.5, 0.5}, 0, tex_info.uv_rotations[0][.Top], tex_info.uv_rects[0][.Top])
-            builder_add_box(&b, {0, 0.5, 0.5}, {1, 1, 1}, {.Bottom}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
-        case .Piston:
-            builder_add_box(&b, {0, 0, 0}, {1, 0.75, 1}, {}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
-            //arm
-            builder_add_box(&b, {0.375, 0, 0.375}, {0.625, 0.75, 0.625}, {.Bottom, .Top}, 1, tex_info.uv_rotations[1], tex_info.uv_rects[1])
-            //head
-            builder_add_box(&b, {0, 0.75, 0}, {1, 1, 1}, {}, 2, tex_info.uv_rotations[2], tex_info.uv_rects[2])
-            builder_set_center(&b, {0.5, 0.5, 0.5})
-            facing = .Top
-        case .Button:
-            builder_add_box(&b, {0.3, 0.4, 0.9}, {0.7, 0.6, 1}, {.South})
-            builder_set_center(&b, {0.5, 0.5, 1})
-        case .Torch:
-            // Main stick (2x2x10)
-            builder_add_box(&b, px_vec({7, 0, 7}), px_vec({9, 10, 9}), {}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
-            
-            // Inverted head centered at the tip
-            builder_add_inverted_box(&b, px_vec({6.5, 7.5, 6.5}), px_vec({9.5, 10.5, 9.5}), {}, 1, tex_info.uv_rotations[1], tex_info.uv_rects[1])
-            builder_set_center(&b, px_vec({8, 5, 8}))
-            facing = .Top
-        }
+        facing := build_block_geometry(&b, Block{type, {}})
         
         m := builder_build(&b, facing)
         

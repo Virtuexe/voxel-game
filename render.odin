@@ -140,117 +140,126 @@ draw_world_chunks :: proc() {
         }
     }
 
-    for do_transparent in ([]bool{false, true}) {
-        for c_pos, chunk in state.world.chunks {
-            for block_key, i in chunk.block_keys {
-                if block_key == 0 do continue
-                block := chunk.palette[block_key]
-                info := block_infos[block.type]
-                tex_info := block_infos[block.type].texture
-                
-                if do_transparent != (.TEXTURE_TRANSPARENT in info.flags) do continue
-
-                l_pos := unflatten(i)
-                global_pos := get_global_pos(c_pos, l_pos)
-                p := to_vec3(global_pos)
-                model_to_draw := get_block_model(block)
-                
-                if block.type == .Redstone {
-                    redstone := block.data.redstone
-                    redstone_tex := get_redstone_texture(redstone.on, redstone.connections).texture
-                    for i in 0..<MAX_TEXTURE_GROUPS * 6 {
-                        rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, redstone_tex)
-                    }
-                } else {
-                    for i in 0..<MAX_TEXTURE_GROUPS * 6 {
-                        group := i / 6
-                        face := Block_Face(i % 6)
-                        t_type := tex_info.textures[group][face]
-                        
-                        if block.type == .Torch && t_type == .Torch_On && !block.data.torch.on {
-                            t_type = .Torch_Off
-                        }
-                        
-                        t := textures[t_type]
-                        // We only have active meshes mapped properly if their material matches
-                        rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, t)
-                    }
-                }
-                animator := animator_init()
-                if id, ok := world_get_tracker_id(global_pos); ok {
-                    if anims, ok := state.world.animations[id]; ok {
-                        for i in 0..<anims.count {
-                            anim := anims.list[i]
-                            info := animation_infos[anim.type]
-                            info.proc_(anim, &animator)
-                        }
-                    }
-                }
-                
-                for m_idx in 0..<model_to_draw.meshCount {
-                    if model_to_draw.meshes[m_idx].vertexCount == 0 do continue
-                    
-                    mat_idx := model_to_draw.meshMaterial[m_idx]
-                    group := int(mat_idx) / 6
-                    face := Block_Face(int(mat_idx) % 6)
-                    
-                    lock_uv: f32 = tex_info.lock_uv_y[group][face] ? 1.0 : 0.0
-                    rl.SetShaderValue(block_shader, lock_uv_loc, &lock_uv, .FLOAT)
-                    
-                    mat_transform := rl.MatrixTranslate(p.x, p.y, p.z) * animator.global_transforms[group] * model_to_draw.transform
-                    mesh_transform := mat_transform * animator.local_transforms[group]
-                    
-                    rl.DrawMesh(model_to_draw.meshes[m_idx], model_to_draw.materials[mat_idx], mesh_transform)
-                }
-
-                //Wire
-                if show_wires && get_block_has_wires(block) {
-                    if wires, ok := state.world.wires[global_pos]; ok {
-                        for wire in wires {
-                            from_center := p + get_block_center(block)
-                            if tracker, exists := state.world.traked_blocks[wire.to]; exists {
-                                target_pos := tracker.pos
-                                target_block := world_get_block(target_pos)
-                                to_center   := to_vec3(target_pos) + get_block_center(target_block)
-                                diff        := to_center - from_center
-                                total_dist  := linalg.length(diff)
-                                if total_dist > 0.001 {
-                                    dir       := diff / total_dist
-                                tile_size : f32 = 0.5
-                                num_tiles := int(total_dist / tile_size)
-                                step      := total_dist / f32(max(num_tiles, 1))
-                                half      := tile_size * 0.5
-                                // Pick a reference vector not parallel to dir to build stable quad axes
-                                ref       := Vec3{0, 1, 0} if abs(dir.y) < 0.99 else Vec3{0, 0, 1}
-                                right     := linalg.normalize(linalg.cross(dir, ref))
-                                up        := linalg.normalize(linalg.cross(right, dir))
+    for c_pos, chunk in state.world.chunks {
+        if chunk.is_dirty {
+            chunk_build_mesh(chunk, c_pos)
+        }
         
-                                rlgl.DisableBackfaceCulling()
-                                rlgl.SetTexture(wire_model_texture.id)
-                                rlgl.Begin(rlgl.QUADS)
-                                rlgl.Color4ub(255, 255, 255, 255)
-                                for t in 0..=num_tiles {
-                                    c := from_center + dir * (f32(t) * step + step * 0.5)
-                                    // Quad corners: U axis = dir, V axis = up (perpendicular to dir)
-                                    bl := c - dir*half - up*half
-                                    br := c + dir*half - up*half
-                                    tr := c + dir*half + up*half
-                                    tl := c - dir*half + up*half
-                                    // Front face
-                                    rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
-                                    rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
-                                    rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
-                                    rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
-                                    // Back face (mirrored U so texture reads correctly from behind)
-                                    rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
-                                    rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
-                                    rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
-                                    rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
-                                }
-                                rlgl.End()
-                                rlgl.SetTexture(0)
-                                rlgl.EnableBackfaceCulling()
+        if chunk.has_model {
+            chunk_transform := rl.MatrixTranslate(f32(c_pos.x * 16), f32(c_pos.y * 16), f32(c_pos.z * 16))
+            for m_idx in 0..<chunk.model.meshCount {
+                if chunk.model.meshes[m_idx].vertexCount == 0 do continue
+                mat_idx := chunk.model.meshMaterial[m_idx]
+                rl.DrawMesh(chunk.model.meshes[m_idx], chunk.model.materials[mat_idx], chunk_transform)
+            }
+        }
+        
+        // Also draw any dynamic tracked/animating blocks and redstone manually
+        for i in chunk.dynamic_blocks {
+            block_key := chunk.block_keys[i]
+            block := chunk.palette[block_key]
+            info := block_infos[block.type]
+            tex_info := block_infos[block.type].texture
+
+            l_pos := unflatten(i)
+            global_pos := get_global_pos(c_pos, l_pos)
+            p := to_vec3(global_pos)
+            model_to_draw := get_block_model(block)
+            
+            if block.type == .Redstone {
+                redstone := block.data.redstone
+                redstone_tex := get_redstone_texture(redstone.on, redstone.connections).texture
+                for i in 0..<MAX_TEXTURE_GROUPS * 6 {
+                    rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, redstone_tex)
+                }
+            } else {
+                for i in 0..<MAX_TEXTURE_GROUPS * 6 {
+                    group := i / 6
+                    face := Block_Face(i % 6)
+                    t_type := tex_info.textures[group][face]
+                    
+                    if block.type == .Torch && t_type == .Torch_On && !block.data.torch.on {
+                        t_type = .Torch_Off
+                    }
+                    
+                    t := textures[t_type]
+                    // We only have active meshes mapped properly if their material matches
+                    rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, t)
+                }
+            }
+            animator := animator_init()
+            if id, ok := world_get_tracker_id(global_pos); ok {
+                if anims, ok := state.world.animations[id]; ok {
+                    for i in 0..<anims.count {
+                        anim := anims.list[i]
+                        info := animation_infos[anim.type]
+                        info.proc_(anim, &animator)
+                    }
+                }
+            }
+            
+            for m_idx in 0..<model_to_draw.meshCount {
+                if model_to_draw.meshes[m_idx].vertexCount == 0 do continue
+                
+                mat_idx := model_to_draw.meshMaterial[m_idx]
+                group := int(mat_idx) / 6
+                face := Block_Face(int(mat_idx) % 6)
+                
+                lock_uv: f32 = tex_info.lock_uv_y[group][face] ? 1.0 : 0.0
+                rl.SetShaderValue(block_shader, lock_uv_loc, &lock_uv, .FLOAT)
+                
+                mat_transform := rl.MatrixTranslate(p.x, p.y, p.z) * animator.global_transforms[group] * model_to_draw.transform
+                mesh_transform := mat_transform * animator.local_transforms[group]
+                
+                rl.DrawMesh(model_to_draw.meshes[m_idx], model_to_draw.materials[mat_idx], mesh_transform)
+            }
+
+            //Wire
+            if show_wires && get_block_has_wires(block) {
+                if wires, ok := state.world.wires[global_pos]; ok {
+                    for wire in wires {
+                        from_center := p + get_block_center(block)
+                        if tracker, exists := state.world.traked_blocks[wire.to]; exists {
+                            target_pos := tracker.pos
+                            target_block := world_get_block(target_pos)
+                            to_center   := to_vec3(target_pos) + get_block_center(target_block)
+                            diff        := to_center - from_center
+                            total_dist  := linalg.length(diff)
+                            if total_dist > 0.001 {
+                                dir       := diff / total_dist
+                            tile_size : f32 = 0.5
+                            num_tiles := int(total_dist / tile_size)
+                            step      := total_dist / f32(max(num_tiles, 1))
+                            half      := tile_size * 0.5
+                            // Pick a reference vector not parallel to dir to build stable quad axes
+                            ref       := Vec3{0, 1, 0} if abs(dir.y) < 0.99 else Vec3{0, 0, 1}
+                            right     := linalg.normalize(linalg.cross(dir, ref))
+                            up        := linalg.normalize(linalg.cross(right, dir))
+    
+                            rlgl.DisableBackfaceCulling()
+                            rlgl.SetTexture(wire_model_texture.id)
+                            rlgl.Begin(rlgl.QUADS)
+                            rlgl.Color4ub(255, 255, 255, 255)
+                            for t in 0..=num_tiles {
+                                c := from_center + dir * (f32(t) * step + step * 0.5)
+                                // Quad corners: U axis = dir, V axis = up (perpendicular to dir)
+                                bl := c - dir*half - up*half
+                                br := c + dir*half - up*half
+                                tr := c + dir*half + up*half
+                                tl := c - dir*half + up*half
+                                // Front face
+                                rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
+                                rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
+                                rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
+                                rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
+                                // Back face (mirrored U so texture reads correctly from behind)
+                                rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
+                                rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
+                                rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
+                                rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
                             }
+                            rlgl.End()
+                            rlgl.EnableBackfaceCulling()
                             }
                         }
                     }

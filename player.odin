@@ -320,25 +320,29 @@ raycast :: proc() {
     closest_hit = rl.RayCollision{ distance = 5.0 }
     state.looking_at_block = false
 
-    for c_pos, chunk in state.world.chunks {
-        for block_key, i in chunk.block_keys {
-            if block_key == 0 do continue
-            l_pos := unflatten(i)
-            global_pos := get_global_pos(c_pos, l_pos)
-            block_pos := to_vec3(global_pos)
-            
-            block := chunk.palette[block_key]
-            model_bbox := get_block_bbox(block, global_pos)
-            bbox := rl.BoundingBox{block_pos + model_bbox.min, block_pos + model_bbox.max}
+    cam_pos := to_vec3i(state.cam.position)
+    range := 6
+    
+    for x in -range..=range {
+        for y in -range..=range {
+            for z in -range..=range {
+                global_pos := cam_pos + {i32(x), i32(y), i32(z)}
+                block := world_get_block(global_pos)
+                if block.type == .Air do continue
+                
+                block_pos := to_vec3(global_pos)
+                model_bbox := get_block_bbox(block, global_pos)
+                bbox := rl.BoundingBox{block_pos + model_bbox.min, block_pos + model_bbox.max}
 
-            hit := rl.GetRayCollisionBox(ray, bbox)
+                hit := rl.GetRayCollisionBox(ray, bbox)
 
-            if hit.hit && hit.distance < closest_hit.distance {
-                closest_hit = hit
-                state.looking_at_block = true
-                state.look_target = global_pos
-                state.place_pos = block_pos + closest_hit.normal
-                state.place_target = to_vec3i(state.place_pos)
+                if hit.hit && hit.distance < closest_hit.distance {
+                    closest_hit = hit
+                    state.looking_at_block = true
+                    state.look_target = global_pos
+                    state.place_pos = block_pos + closest_hit.normal
+                    state.place_target = to_vec3i(state.place_pos)
+                }
             }
         }
     }

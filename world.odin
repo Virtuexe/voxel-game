@@ -27,6 +27,10 @@ Scheduled_Action :: struct {
 Chunk :: struct {
     palette: [dynamic]Block,
     block_keys: [16*16*16]int,
+    dynamic_blocks: [dynamic]int,
+    model: rl.Model,
+    is_dirty: bool,
+    has_model: bool,
 }
 
 world_init :: proc() {
@@ -36,8 +40,9 @@ world_init :: proc() {
     state.world.traked_blocks = make(map[int]Block_Tracker)
     state.world.animations = make(map[int]Block_Animations)
     
-    for x in -8..<8 {
-        for z in -8..<8 {
+    size := 256
+    for x in -size..<size {
+        for z in -size..<size {
             world_set_block({i32(x), 0, i32(z)}, Block{.Stone, {}})
             world_set_block({i32(x), 1, i32(z)}, Block{.Dirt, {}})
         }
@@ -111,13 +116,23 @@ world_set_block :: proc(pos: Vec3I, block: Block) {
     if c_pos not_in state.world.chunks {
         chunk := new(Chunk)
         chunk.palette = make([dynamic]Block)
+        chunk.dynamic_blocks = make([dynamic]int)
         append(&chunk.palette, Block{.Air, {}})
         state.world.chunks[c_pos] = chunk
     }
     chunk := state.world.chunks[c_pos]
+    chunk.is_dirty = true
     l_pos := get_local_pos(pos)
     block_key := chunk_provide_block_key(chunk, block)
     chunk.block_keys[flatten(l_pos)] = block_key
+
+    // Invalidate neighbors if on boundary
+    if l_pos.x == 0 && (c_pos - {1, 0, 0}) in state.world.chunks do state.world.chunks[c_pos - {1, 0, 0}].is_dirty = true
+    if l_pos.x == 15 && (c_pos + {1, 0, 0}) in state.world.chunks do state.world.chunks[c_pos + {1, 0, 0}].is_dirty = true
+    if l_pos.y == 0 && (c_pos - {0, 1, 0}) in state.world.chunks do state.world.chunks[c_pos - {0, 1, 0}].is_dirty = true
+    if l_pos.y == 15 && (c_pos + {0, 1, 0}) in state.world.chunks do state.world.chunks[c_pos + {0, 1, 0}].is_dirty = true
+    if l_pos.z == 0 && (c_pos - {0, 0, 1}) in state.world.chunks do state.world.chunks[c_pos - {0, 0, 1}].is_dirty = true
+    if l_pos.z == 15 && (c_pos + {0, 0, 1}) in state.world.chunks do state.world.chunks[c_pos + {0, 0, 1}].is_dirty = true
 }
 
 world_delete_block :: proc(pos: Vec3I) {
