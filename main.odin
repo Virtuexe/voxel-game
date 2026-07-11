@@ -97,7 +97,7 @@ main :: proc() {
     rl.SetTraceLogLevel(.WARNING)
     rl.SetWindowState({.WINDOW_RESIZABLE})
     rl.InitWindow(1200, 800, "Game")
-    rl.SetTargetFPS(120)
+    rl.SetTargetFPS(0) // 0 completely uncaps FPS and disables sleep
     rl.SetExitKey(rl.KeyboardKey.KEY_NULL)
 
     init(&ustate)

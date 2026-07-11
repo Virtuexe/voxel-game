@@ -8,6 +8,7 @@ Player_Movement :: struct {
     is_flying: bool,
     can_jump: bool,
     move_speed: f32,
+    fly_sprint_multiplier: f32,
     gravity: f32,
     jump_strength: f32,
     is_grounded: bool,
@@ -60,6 +61,8 @@ State :: struct {
     ui_cam: rl.Camera2D,
     code: Code_State,
     world: World_State,
+    
+    render_distance: i32,
 
     using movement: Player_Movement,
     using input: Player_Input,
@@ -78,8 +81,10 @@ state := State {
         projection = .PERSPECTIVE,
     },
     ui_cam = {zoom=1},
+    render_distance = 4,
     movement = {
         move_speed = 4.3,
+        fly_sprint_multiplier = 3.0,
         gravity = 32,
         jump_strength = 8.4,
         yaw = 90,

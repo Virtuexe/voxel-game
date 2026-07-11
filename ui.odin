@@ -45,11 +45,39 @@ draw_ui :: proc(ustate: ^UI_State) {
         ui.align(&crosshair, ustate.view, .Center)
         ui.draw_rec_texture(crosshair, crosshair_texture)
     } else {
-        text := fmt.aprint(
-            "position: ", state.cam.position, "\n",
-            allocator = context.temp_allocator
-        )
-        rl.DrawText(strings.clone_to_cstring(text, context.temp_allocator), 0, 0, i32(ui.vmin(ustate.view.size)/30), rl.WHITE)
+        dynamic_blocks_count := 0
+        
+        player_chunk := get_chunk_pos(to_vec3i(state.cam.position))
+        r_dist := state.render_distance
+
+        for dx in -r_dist..=r_dist {
+            for dy in -r_dist..=r_dist {
+                for dz in -r_dist..=r_dist {
+                    c_pos := player_chunk + {dx, dy, dz}
+                    if chunk, ok := state.world.chunks[c_pos]; ok {
+                        dynamic_blocks_count += len(chunk.dynamic_blocks)
+                    }
+                }
+            }
+        }
+
+        font_size := ui.vmin(ustate.view.size) / 30.0
+        style := ui.make_text_style(font_size)
+        
+        texts := [4]string{
+            fmt.tprintf("FPS: %v", rl.GetFPS()),
+            fmt.tprintf("Position: %.2f, %.2f, %.2f", state.cam.position.x, state.cam.position.y, state.cam.position.z),
+            fmt.tprintf("Tracked blocks: %v", len(state.world.traked_blocks)),
+            fmt.tprintf("Dynamic blocks: %v", dynamic_blocks_count),
+        }
+        
+        for t, i in texts {
+            y_offset := f32(i) * font_size * 1.2
+            // Draw drop shadow for visibility
+            ui.draw_text(t, style, {font_size/15.0, y_offset + font_size/15.0}, rl.BLACK)
+            // Draw main text
+            ui.draw_text(t, style, {0, y_offset}, rl.WHITE)
+        }
     }
 
     ui.end_draw()

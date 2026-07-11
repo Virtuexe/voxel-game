@@ -26,7 +26,7 @@ chunk_mesher_destroy :: proc(m: ^Chunk_Mesher) {
 
 // Copy a mesh from block builder to the chunk builder, applying translation.
 // It applies the vertices to the specified texture type.
-chunk_mesher_add_model_parts :: proc(m: ^Chunk_Mesher, b: ^Block_Model_Builder, offset: [3]f32, t_types: [MAX_TEXTURE_GROUPS * 6]Texture_Type) {
+chunk_mesher_add_model_parts :: proc(m: ^Chunk_Mesher, b: ^Block_Model_Builder, offset: [3]f32, transform: rl.Matrix, t_types: [MAX_TEXTURE_GROUPS * 6]Texture_Type, lock_uv: [MAX_TEXTURE_GROUPS][Block_Face]bool) {
     for group_face in 0..<MAX_TEXTURE_GROUPS * 6 {
         vcount := len(b.positions[group_face])
         if vcount == 0 do continue
@@ -36,13 +36,27 @@ chunk_mesher_add_model_parts :: proc(m: ^Chunk_Mesher, b: ^Block_Model_Builder, 
         base_index := u16(len(m.positions[t_type]))
         
         for p in b.positions[group_face] {
-            append(&m.positions[t_type], p + offset)
+            p_trans := rl.Vector3Transform(p, transform)
+            append(&m.positions[t_type], p_trans + offset)
         }
         for n in b.normals[group_face] {
-            append(&m.normals[t_type], n)
+            // Apply rotation to normal
+            p_trans := rl.Vector3Transform(n, transform)
+            p_zero := rl.Vector3Transform({0, 0, 0}, transform)
+            n_trans := p_trans - p_zero
+            append(&m.normals[t_type], linalg.normalize0(n_trans))
         }
-        for uv in b.texcoords[group_face] {
-            append(&m.texcoords[t_type], uv)
+        for uv, j in b.texcoords[group_face] {
+            group := group_face / 6
+            face := Block_Face(group_face % 6)
+            final_uv := uv
+            
+            if lock_uv[group][face] && (face == .Top || face == .Bottom) {
+                p_trans := rl.Vector3Transform(b.positions[group_face][j], transform)
+                world_p := p_trans + offset
+                final_uv = {world_p.x, world_p.z}
+            }
+            append(&m.texcoords[t_type], final_uv)
         }
         for idx in b.indices[group_face] {
             append(&m.indices[t_type], base_index + idx)
@@ -124,8 +138,10 @@ chunk_build_mesh :: proc(chunk: ^Chunk, c_pos: Vec3I) {
             }
         }
         
+        rot_mat := get_block_transform(block)
+        
         // Append generated geometry to the chunk mesher grouped by Texture_Type
-        chunk_mesher_add_model_parts(&m, &b, to_vec3(l_pos), t_types)
+        chunk_mesher_add_model_parts(&m, &b, to_vec3(l_pos), rot_mat, t_types, tex_info.lock_uv_y)
     }
     
     active_mesh_count := 0
@@ -183,6 +199,7 @@ chunk_build_mesh :: proc(chunk: ^Chunk, c_pos: Vec3I) {
         rl.UploadMesh(mesh, false)
         
         model.materials[m_idx] = rl.LoadMaterialDefault()
+        model.materials[m_idx].shader = block_shader
         rl.SetMaterialTexture(&model.materials[m_idx], .ALBEDO, textures[t])
         model.meshMaterial[m_idx] = i32(m_idx)
         

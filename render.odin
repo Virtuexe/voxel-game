@@ -140,12 +140,22 @@ draw_world_chunks :: proc() {
         }
     }
 
-    for c_pos, chunk in state.world.chunks {
+    player_chunk := get_chunk_pos(to_vec3i(state.cam.position))
+    r_dist := state.render_distance
+
+    for dx in -r_dist..=r_dist {
+        for dy in -r_dist..=r_dist {
+            for dz in -r_dist..=r_dist {
+                c_pos := player_chunk + {dx, dy, dz}
+                if chunk, ok := state.world.chunks[c_pos]; ok {
+
         if chunk.is_dirty {
             chunk_build_mesh(chunk, c_pos)
         }
         
         if chunk.has_model {
+            lock_uv: f32 = 0.0
+            rl.SetShaderValue(block_shader, lock_uv_loc, &lock_uv, .FLOAT)
             chunk_transform := rl.MatrixTranslate(f32(c_pos.x * 16), f32(c_pos.y * 16), f32(c_pos.z * 16))
             for m_idx in 0..<chunk.model.meshCount {
                 if chunk.model.meshes[m_idx].vertexCount == 0 do continue
@@ -267,4 +277,7 @@ draw_world_chunks :: proc() {
             }
         }
     }
+    }
+    }
+}
 }

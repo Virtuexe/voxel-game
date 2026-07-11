@@ -47,6 +47,7 @@ world_init :: proc() {
             world_set_block({i32(x), 1, i32(z)}, Block{.Dirt, {}})
         }
     }
+    world_set_block({0, 1, 0}, Block{.Cobblestone, {}})
 }
 
 //Returns the block id from palette. If the block is not present it will get created.

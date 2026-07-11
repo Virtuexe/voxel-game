@@ -75,7 +75,11 @@ update_player :: proc(delta: f32) {
         state.eye_height = 1.3
     } else {
         if is_down(.Sprint) {
-            move_speed *= 1.5
+            if state.is_flying {
+                move_speed *= state.fly_sprint_multiplier
+            } else {
+                move_speed *= 1.5
+            }
         }
         state.collider_size.y = 2.0
         state.eye_height = 1.8
@@ -83,11 +87,19 @@ update_player :: proc(delta: f32) {
     wasd: Vec3
     if state.use_key_input do wasd = get_wasd_input(forward_move, right_move, up)
     movement := wasd * delta * move_speed
+    
+    state.is_grounded = is_player_supported(state.position)
+    
     if state.apply_gravity {
-        state.velocity.y -= state.gravity * delta
+        if state.is_grounded && state.velocity.y <= 0 {
+            state.velocity.y = 0
+        } else {
+            state.velocity.y -= state.gravity * delta
+        }
     }
     if is_pressed(.Jump) && state.is_grounded && state.can_jump && state.use_key_input {
         state.velocity.y = state.jump_strength
+        state.is_grounded = false
     }
 
     if is_pressed(.Fly) && state.use_key_input {
@@ -103,7 +115,6 @@ update_player :: proc(delta: f32) {
 
     //COLLISION
     was_grounded := state.is_grounded
-    state.is_grounded = false
     for i in 0..<3 {
         if state.is_shifting && was_grounded && !state.is_flying && i != 1 {
             test_pos := state.position
@@ -158,7 +169,7 @@ update_player :: proc(delta: f32) {
 
                 movement[i] = 0
                 if i == 1 {
-                    state.is_grounded = true
+                    if state.velocity.y < 0 do state.is_grounded = true
                     state.velocity.y = 0
                 }
                 break
