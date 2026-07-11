@@ -17,7 +17,7 @@ Block_Model_Data :: struct {
 }
 block_models: [Block_Type]Block_Model_Data
 
-Block_Model :: enum {Cube, Slab, Decal, Stairs, Piston, Button, Torch}
+Block_Model :: enum {Cube, Slab, Decal, Stairs, Piston, Button, Torch, Lever,}
 
 init_models :: proc() {
     img := rl.GenImageColor(1, 1, rl.WHITE)

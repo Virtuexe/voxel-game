@@ -9,6 +9,7 @@ redstone_render_texture: [(1<<len(Cardinal))*2]rl.RenderTexture2D
 Block_Type :: enum {
     Air, Dirt, Stone, Cobblestone, Glass, Planks,
     Redstone, Slab, Stairs, Piston, Button, Torch,
+    Lever,
 }
 
 Block_Action :: enum {
@@ -22,6 +23,7 @@ Block_Action :: enum {
     Piston_Deactivate_Off,
     Torch_Turn_On,
     Torch_Turn_Off,
+    Lever_Activate,
 }
 Action_Data :: struct {
     pushed_block: bool,
@@ -40,6 +42,7 @@ block_actions := [Block_Action]Block_Action_Proc {
     .Button_Deactivate = button_deactivate,
     .Torch_Turn_On = torch_turn_on,
     .Torch_Turn_Off = torch_turn_off,
+    .Lever_Activate = lever_activate,
 }
 
 
@@ -131,7 +134,13 @@ block_infos := [Block_Type]Block_Info {
         model = .Torch,
         on_activate = {.Torch_Turn_Off, {}},
         on_deactivate = {.Torch_Turn_On, {}},
-    }
+    },
+    .Lever = {
+        flags = {.HAS_CARDINAL, .HAS_BLOCK_FACE, .NO_COLLISION, .STATEFUL, .TEXTURE_TRANSPARENT, .WIRE_OUTPUT},
+        item = .Lever,
+        model = .Lever,
+        on_right_click = {.Lever_Activate, {}},
+    },
 }
 
 
@@ -212,6 +221,18 @@ torch_turn_off :: proc(pos: Vec3I, data: Action_Data) {
     world_set_block(pos, block)
     deactivate_wired_blocks(pos, {})
 }
+
+lever_activate :: proc(pos: Vec3I, data: Action_Data) {
+    block := world_get_block(pos)
+    block.data.lever.on = !block.data.lever.on
+    world_play_animation(.Button, pos)
+    world_set_block(pos, block)
+    if block.data.lever.on {
+        activate_wired_blocks(pos, {})
+    } else {
+        deactivate_wired_blocks(pos, {})
+    }
+}
 piston_activate :: proc(pos: Vec3I, data: Action_Data) {
     piston_block := world_get_block(pos)
     if piston_block.data.piston.is_active do return
@@ -276,6 +297,7 @@ Block_Data :: struct #raw_union {
     stairs: Stairs_Data,
     slab: Slab_Data,
     wired: Wired_Data,
+    lever: Lever_Data,
 }
 Button_Data :: struct {
     on: bool,
@@ -305,6 +327,11 @@ Slab_Data :: struct {
     facing: Block_Face,
 }
 Wired_Data :: struct {
+    has_wires: bool,
+}
+Lever_Data :: struct {
+    on: bool,
+    facing: Block_Face,
     has_wires: bool,
 }
 Wire :: struct {

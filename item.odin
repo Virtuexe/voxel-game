@@ -5,7 +5,7 @@ import ui "raylib-ui"
 Item_Type :: enum {
     Dirt, Stone, Cobblestone, Glass, Planks,
     Redstone, Slab, Stairs, Piston,
-    Wire, Button, Torch
+    Wire, Button, Torch, Lever,
 }
 
 Item_Data :: struct {
@@ -117,7 +117,13 @@ items := [Item_Type]Item_Info{
         name = "Torch",
         texture = .Torch_On,
         on_right_click = .Block_Place,
-    }
+    },
+    .Lever = {
+        block = .Lever,
+        name = "Lever",
+        texture = .Lever,
+        on_right_click = .Block_Place,
+    },
 }
 
 wire_item_right_click :: proc(item: ^Item) {

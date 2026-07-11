@@ -267,9 +267,14 @@ build_block_geometry :: proc(b: ^Block_Model_Builder, block: Block, excluded_fac
         builder_add_box(b, {0.3, 0.4, 0.9}, {0.7, 0.6, 1}, excluded_faces + {.South})
         builder_set_center(b, {0.5, 0.5, 1})
     case .Torch:
-        builder_add_box(b, px_vec({7, 0, 7}), px_vec({9, 10, 9}), excluded_faces, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+        builder_add_box(b, px_vec({7, 0, 7}), px_vec({9, 10, 9}), {.Bottom}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
         builder_add_inverted_box(b, px_vec({6.5, 7.5, 6.5}), px_vec({9.5, 10.5, 9.5}), excluded_faces, 1, tex_info.uv_rotations[1], tex_info.uv_rects[1])
         builder_set_center(b, px_vec({8, 5, 8}))
+        facing = .Top
+    case .Lever:
+        builder_add_box(b, px_vec({5, 0, 4}), px_vec({11, 3, 12}), {.Bottom}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+        builder_add_box(b, px_vec({7, 3, 7}), px_vec({9, 13, 9}), {.Bottom}, 1, tex_info.uv_rotations[1], tex_info.uv_rects[1])
+        builder_set_center(b, px_vec({8, 3, 8}))
         facing = .Top
     }
     

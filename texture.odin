@@ -6,9 +6,9 @@ Texture_Type :: enum {
     Dirt, Stone, Cobblestone, Glass, Planks,
     Slab_Side, Slab_Top,
     Piston_Side, Piston_Top, Piston_Bottom, Piston_Inner,
-    Torch_On, Torch_Off,
+    Torch_On, Torch_Off, Lever,
     //Items
-    Wire, Copper_Wire,
+    Wire, Copper_Wire
 }
 
 texture_paths := [Texture_Type]cstring {
@@ -26,7 +26,8 @@ texture_paths := [Texture_Type]cstring {
     .Wire = "assets/wire.png",
     .Copper_Wire = "assets/copper_wire.png",
     .Torch_On = "assets/torch.png",
-    .Torch_Off = "assets/torch_off.png"
+    .Torch_Off = "assets/torch_off.png",
+    .Lever = "assets/lever.png",
 }
 
 textures: [Texture_Type]rl.Texture2D
@@ -130,6 +131,14 @@ init_block_textures :: proc() {
             // Group 1: Inverted Flame Head
             texture.textures[1] = fill_textures(.Torch_On)
             texture.uv_rects[1] = fill_uv_rects(pixel_uv({{6, 5}, {1, 1}}))
+        case .Lever:
+            // Group 0: Cobblestone base
+            texture.textures[0] = fill_textures(.Cobblestone)
+            //texture.lock_uv_y[0] = fill_lock_uv_y(true)
+            // Group 1: Lever Stick
+            texture.textures[1] = fill_textures(.Lever)
+            texture.uv_rects[1] = fill_uv_rects(pixel_uv({{7, 6}, {2, 10}}))
+            texture.uv_rects[1][.Top] = pixel_uv({{7, 6}, {2, 2}})
         }
     }
 }
