@@ -121,6 +121,22 @@ items := [Item_Type]Item_Info{
 }
 
 wire_item_right_click :: proc(item: ^Item) {
+    if !state.looking_at_block {
+        item.data.selected_block = nil
+        return
+    }
+    
+    target_block := world_get_block(state.look_target)
+    target_info := block_infos[target_block.type]
+    
+    if .WIRE_INPUT in target_info.flags {
+        item.data.selected_block = state.look_target
+    } else {
+        item.data.selected_block = nil
+    }
+}
+
+wire_item_left_click :: proc(item: ^Item) {
     if !state.looking_at_block do return
     if pos, ok := item.data.selected_block.?; ok {
         if pos == state.look_target do return
@@ -165,17 +181,7 @@ wire_item_right_click :: proc(item: ^Item) {
                 world_set_block(pos, source_block)
             }
         }
-    } else {
-        target_block := world_get_block(state.look_target)
-        target_info := block_infos[target_block.type]
-        if .WIRE_INPUT in target_info.flags {
-            item.data.selected_block = state.look_target
-        }
     }
-}
-
-wire_item_left_click :: proc(item: ^Item) {
-    item.data.selected_block = nil
 }
 
 block_place :: proc(item: ^Item) {

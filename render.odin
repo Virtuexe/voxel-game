@@ -161,9 +161,20 @@ draw_world_chunks :: proc() {
                 rl.DrawMesh(model_to_draw.meshes[m_idx], model_to_draw.materials[mat_idx], mesh_transform)
             }
 
-            //Wire
-            if show_wires && block.has_wires {
-                if wires, ok := state.world.wires[global_pos]; ok {
+        }
+    }
+    }
+    }
+    }
+    
+    if show_wires {
+        for global_pos, wires in state.world.wires {
+            c_pos := get_chunk_pos(global_pos)
+            diff_chunk := c_pos - player_chunk
+            if abs(diff_chunk.x) <= r_dist && abs(diff_chunk.y) <= r_dist && abs(diff_chunk.z) <= r_dist {
+                if chunk, ok := state.world.chunks[c_pos]; ok {
+                    block := world_get_block(global_pos)
+                    p := to_vec3(global_pos)
                     for wire in wires {
                         from_center := p + get_block_center(block)
                         if tracker, exists := state.world.traked_blocks[wire.to]; exists {
@@ -174,39 +185,39 @@ draw_world_chunks :: proc() {
                             total_dist  := linalg.length(diff)
                             if total_dist > 0.001 {
                                 dir       := diff / total_dist
-                            tile_size : f32 = 0.5
-                            num_tiles := int(total_dist / tile_size)
-                            step      := total_dist / f32(max(num_tiles, 1))
-                            half      := tile_size * 0.5
-                            // Pick a reference vector not parallel to dir to build stable quad axes
-                            ref       := Vec3{0, 1, 0} if abs(dir.y) < 0.99 else Vec3{0, 0, 1}
-                            right     := linalg.normalize(linalg.cross(dir, ref))
-                            up        := linalg.normalize(linalg.cross(right, dir))
-    
-                            rlgl.DisableBackfaceCulling()
-                            rlgl.SetTexture(wire_model_texture.id)
-                            rlgl.Begin(rlgl.QUADS)
-                            rlgl.Color4ub(255, 255, 255, 255)
-                            for t in 0..=num_tiles {
-                                c := from_center + dir * (f32(t) * step + step * 0.5)
-                                // Quad corners: U axis = dir, V axis = up (perpendicular to dir)
-                                bl := c - dir*half - up*half
-                                br := c + dir*half - up*half
-                                tr := c + dir*half + up*half
-                                tl := c - dir*half + up*half
-                                // Front face
-                                rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
-                                rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
-                                rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
-                                rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
-                                // Back face (mirrored U so texture reads correctly from behind)
-                                rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
-                                rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
-                                rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
-                                rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
-                            }
-                            rlgl.End()
-                            rlgl.EnableBackfaceCulling()
+                                tile_size : f32 = 0.5
+                                num_tiles := int(total_dist / tile_size)
+                                step      := total_dist / f32(max(num_tiles, 1))
+                                half      := tile_size * 0.5
+                                // Pick a reference vector not parallel to dir to build stable quad axes
+                                ref       := Vec3{0, 1, 0} if abs(dir.y) < 0.99 else Vec3{0, 0, 1}
+                                right     := linalg.normalize(linalg.cross(dir, ref))
+                                up        := linalg.normalize(linalg.cross(right, dir))
+        
+                                rlgl.DisableBackfaceCulling()
+                                rlgl.SetTexture(wire_model_texture.id)
+                                rlgl.Begin(rlgl.QUADS)
+                                rlgl.Color4ub(255, 255, 255, 255)
+                                for t in 0..=num_tiles {
+                                    c := from_center + dir * (f32(t) * step + step * 0.5)
+                                    // Quad corners: U axis = dir, V axis = up (perpendicular to dir)
+                                    bl := c - dir*half - up*half
+                                    br := c + dir*half - up*half
+                                    tr := c + dir*half + up*half
+                                    tl := c - dir*half + up*half
+                                    // Front face
+                                    rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
+                                    rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
+                                    rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
+                                    rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
+                                    // Back face (mirrored U so texture reads correctly from behind)
+                                    rlgl.TexCoord2f(1, 1); rlgl.Vertex3f(br.x, br.y, br.z)
+                                    rlgl.TexCoord2f(0, 1); rlgl.Vertex3f(bl.x, bl.y, bl.z)
+                                    rlgl.TexCoord2f(0, 0); rlgl.Vertex3f(tl.x, tl.y, tl.z)
+                                    rlgl.TexCoord2f(1, 0); rlgl.Vertex3f(tr.x, tr.y, tr.z)
+                                }
+                                rlgl.End()
+                                rlgl.EnableBackfaceCulling()
                             }
                         }
                     }
@@ -214,7 +225,4 @@ draw_world_chunks :: proc() {
             }
         }
     }
-    }
-    }
-}
 }

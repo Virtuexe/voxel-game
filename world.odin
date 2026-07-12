@@ -192,7 +192,6 @@ world_schedule_action :: proc(action: Block_Action, pos: Vec3I, delay: f32, data
 }
 
 update_world :: proc() {
-    fmt.println("Tracked blocks:", len(state.world.traked_blocks))
     update_world_scheduled_actions()
     update_world_animations()
 }

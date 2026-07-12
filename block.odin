@@ -15,14 +15,13 @@ Block_Type :: enum {
 Block_Action :: enum {
     None,
     Activate_Wired_Blocks,
-    Deactivate_Wired_Blocks,
+    On_Off,
     Piston_Activate,
     Piston_Deactivate,
     Button_Activate,
-    Button_Deactivate,
     Piston_Deactivate_Off,
     Lever_Activate,
-    Lever_Deactivate,
+    Torch_Activate,
 }
 Action_Data :: struct {
     pushed_block: bool,
@@ -33,14 +32,13 @@ Block_Action_Proc :: proc(pos: Vec3I, data: Action_Data)
 block_actions := [Block_Action]Block_Action_Proc {
     .None = nil,
     .Activate_Wired_Blocks = activate_wired_blocks,
-    .Deactivate_Wired_Blocks = deactivate_wired_blocks,
+    .On_Off = on_off,
     .Piston_Activate = piston_activate,
     .Piston_Deactivate = piston_deactivate,
     .Piston_Deactivate_Off = piston_deactivate_off,
     .Button_Activate = button_activate,
-    .Button_Deactivate = button_deactivate,
     .Lever_Activate = lever_activate,
-    .Lever_Deactivate = lever_activate,
+    .Torch_Activate = torch_activate,
 }
 
 
@@ -57,7 +55,6 @@ Block_Info :: struct {
     texture: Block_Texture,
     on_right_click: Call_Action,
     on_activate: Call_Action,
-    on_deactivate: Call_Action,
 }
 Block_Flag :: enum {
     TEXTURE_TRANSPARENT,
@@ -125,8 +122,7 @@ block_infos := [Block_Type]Block_Info {
         flags = {.NO_COLLISION, .TEXTURE_TRANSPARENT, .WIRE_INPUT, .WIRE_OUTPUT},
         item = .Torch,
         model = .Torch,
-        on_activate = {.Deactivate_Wired_Blocks, {}},
-        on_deactivate = {.Activate_Wired_Blocks, {}},
+        on_activate = {.Torch_Activate, {}},
     },
     .Lever = {
         flags = {.HAS_BLOCK_FACE, .NO_COLLISION, .TEXTURE_TRANSPARENT, .WIRE_INPUT},
@@ -144,7 +140,6 @@ block_init :: proc() {
 }
 //TODO unload textures
 
-//runs activate function of all block
 activate_wired_blocks :: proc(pos: Vec3I, data: Action_Data) {
     block := world_get_block(pos)
     if !block.has_wires do return
@@ -162,25 +157,11 @@ activate_wired_blocks :: proc(pos: Vec3I, data: Action_Data) {
         }
     }
 }
-
-deactivate_wired_blocks :: proc(pos: Vec3I, data: Action_Data) {
+on_off :: proc(pos: Vec3I, data: Action_Data) {
     block := world_get_block(pos)
-    if !block.has_wires do return
-    
-    if wires, ok := state.world.wires[pos]; ok {
-        for wire in wires {
-            if tracker, exists := state.world.traked_blocks[wire.to]; exists {
-                target_pos := tracker.pos
-                target_block := world_get_block(target_pos)
-                info := block_infos[target_block.type]
-                if info.on_deactivate.type != .None {
-                    block_actions[info.on_deactivate.type](target_pos, info.on_deactivate.data)
-                }
-            }
-        }
-    }
+    block.is_on = !block.is_on
+    world_set_block(pos, block)
 }
-
 button_activate :: proc(pos: Vec3I, data: Action_Data) {
     block := world_get_block(pos)
     if block.is_on do return
@@ -188,26 +169,13 @@ button_activate :: proc(pos: Vec3I, data: Action_Data) {
     world_play_animation(.Button, pos)
     world_set_block(pos, block)
     activate_wired_blocks(pos, {})
-    world_schedule_action(.Button_Deactivate, pos, animation_infos[.Button].end)
-}
-
-button_deactivate :: proc(pos: Vec3I, data: Action_Data) {
-    block := world_get_block(pos)
-    if !block.is_on do return
-    block.is_on = false
-    world_set_block(pos, block)
-    deactivate_wired_blocks(pos, {})
 }
 
 lever_activate :: proc(pos: Vec3I, data: Action_Data) {
     block := world_get_block(pos)
     block.is_on = !block.is_on
     world_set_block(pos, block)
-    if block.is_on {
-        activate_wired_blocks(pos, {})
-    } else {
-        deactivate_wired_blocks(pos, {})
-    }
+    activate_wired_blocks(pos, {})
 }
 piston_activate :: proc(pos: Vec3I, data: Action_Data) {
     piston_block := world_get_block(pos)
@@ -255,6 +223,13 @@ piston_deactivate_off :: proc(pos: Vec3I, data: Action_Data) {
     piston_block.is_on = false
     world_set_block(pos, piston_block)
 }
+torch_activate :: proc(pos: Vec3I, data: Action_Data) {
+    torch := world_get_block(pos)
+    if !torch.is_on {
+        block_actions[.Activate_Wired_Blocks](pos, data)
+    }
+    block_actions[.On_Off](pos, data)
+}
 
 
 
@@ -299,10 +274,6 @@ place_base_block :: proc(block: Block) {
         block.direction = state.place_yaw_dir
     } else if has_block_face {
         block.facing = state.place_pitch_face
-    }
-    
-    if block.type == .Torch {
-        block.is_on = true
     }
     
     world_set_block(state.place_target, block)
