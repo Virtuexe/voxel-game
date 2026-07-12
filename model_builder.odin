@@ -1,5 +1,6 @@
 package voxel_game
 
+import "core:math"
 import rl "vendor:raylib"
 
 Block_Model_Builder :: struct {
@@ -273,7 +274,9 @@ build_block_geometry :: proc(b: ^Block_Model_Builder, block: Block, excluded_fac
         facing = .Top
     case .Lever:
         builder_add_box(b, px_vec({5, 0, 4}), px_vec({11, 3, 12}), {.Bottom}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
-        builder_add_box(b, px_vec({7, 3, 7}), px_vec({9, 13, 9}), {.Bottom}, 1, tex_info.uv_rotations[1], tex_info.uv_rects[1])
+        builder_add_box(b, px_vec({7, 2, 7}), px_vec({9, 12, 9}), {.Bottom}, 1, tex_info.uv_rotations[1], tex_info.uv_rects[1])
+        angle: f32 = block.is_on ? -45.0 : 45.0
+        builder_rotate(b, 1, px_vec({8, 3, 8}), {1, 0, 0}, angle * (math.PI / 180.0))
         builder_set_center(b, px_vec({8, 3, 8}))
         facing = .Top
     }
@@ -365,4 +368,25 @@ builder_add_inverted_box :: proc(b: ^Block_Model_Builder, min_p, max_p: [3]f32, 
     if .East not_in excluded_faces   do builder_add_inverted_quad(b, .East,   {max_p.x, min_p.y, min_p.z}, {max_p.x, max_p.y, max_p.z}, group, uv_rotations[.East], uv_rects[.East])
     if .West not_in excluded_faces   do builder_add_inverted_quad(b, .West,   {min_p.x, min_p.y, min_p.z}, {min_p.x, max_p.y, max_p.z}, group, uv_rotations[.West], uv_rects[.West])
     builder_add_collision_box(b, group, min_p, max_p)
+}
+
+builder_rotate :: proc(b: ^Block_Model_Builder, group: int, pivot: Vec3, axis: Vec3, angle: f32) {
+    mat := rl.MatrixTranslate(-pivot.x, -pivot.y, -pivot.z)
+    mat = rl.MatrixRotate(axis, angle) * mat
+    mat = rl.MatrixTranslate(pivot.x, pivot.y, pivot.z) * mat
+    
+    rot_mat := rl.MatrixRotate(axis, angle)
+    
+    start_idx := group * 6
+    end_idx := start_idx + 6
+    
+    for i in start_idx..<end_idx {
+        for j in 0..<len(b.positions[i]) {
+            p := b.positions[i][j]
+            b.positions[i][j] = rl.Vector3Transform(p, mat)
+            
+            n := b.normals[i][j]
+            b.normals[i][j] = rl.Vector3Transform(n, rot_mat)
+        }
+    }
 }

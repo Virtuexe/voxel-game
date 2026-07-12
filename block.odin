@@ -61,7 +61,6 @@ Block_Info :: struct {
 }
 Block_Flag :: enum {
     TEXTURE_TRANSPARENT,
-    STATEFUL,
     NO_COLLISION,
     HAS_CARDINAL,
     HAS_BLOCK_FACE,
@@ -117,20 +116,20 @@ block_infos := [Block_Type]Block_Info {
         on_activate = {.Piston_Activate, {}},
     },
     .Button = {
-        flags = {.HAS_BLOCK_FACE, .NO_COLLISION, .WIRE_INPUT, .STATEFUL},
+        flags = {.HAS_BLOCK_FACE, .NO_COLLISION, .WIRE_INPUT},
         item = .Button,
         model = .Button,
         on_right_click = {.Button_Activate, {}}
     },
     .Torch = {
-        flags = {.NO_COLLISION, .STATEFUL, .TEXTURE_TRANSPARENT, .WIRE_INPUT, .WIRE_OUTPUT},
+        flags = {.NO_COLLISION, .TEXTURE_TRANSPARENT, .WIRE_INPUT, .WIRE_OUTPUT},
         item = .Torch,
         model = .Torch,
         on_activate = {.Deactivate_Wired_Blocks, {}},
         on_deactivate = {.Activate_Wired_Blocks, {}},
     },
     .Lever = {
-        flags = {.HAS_BLOCK_FACE, .NO_COLLISION, .STATEFUL, .TEXTURE_TRANSPARENT, .WIRE_INPUT},
+        flags = {.HAS_BLOCK_FACE, .NO_COLLISION, .TEXTURE_TRANSPARENT, .WIRE_INPUT},
         item = .Lever,
         model = .Lever,
         on_right_click = {.Lever_Activate, {}},
@@ -307,4 +306,4 @@ place_base_block :: proc(block: Block) {
     }
     
     world_set_block(state.place_target, block)
-}
+}

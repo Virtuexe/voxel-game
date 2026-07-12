@@ -89,7 +89,6 @@ chunk_build_mesh :: proc(chunk: ^Chunk, c_pos: Vec3I) {
         tex_info := info.texture
         
         is_dynamic := false
-        if .STATEFUL in info.flags do is_dynamic = true
         
         id, ok := world_get_tracker_id(global_pos)
         if ok && id in state.world.animations do is_dynamic = true
@@ -134,7 +133,11 @@ chunk_build_mesh :: proc(chunk: ^Chunk, c_pos: Vec3I) {
         for group in 0..<MAX_TEXTURE_GROUPS {
             for face in Block_Face {
                 idx := group * 6 + int(face)
-                t_types[idx] = tex_info.textures[group][face]
+                t_type := tex_info.textures[group][face]
+                if block.type == .Torch && t_type == .Torch_On && !block.is_on {
+                    t_type = .Torch_Off
+                }
+                t_types[idx] = t_type
             }
         }
         
