@@ -118,7 +118,13 @@ chunk_build_mesh :: proc(chunk: ^Chunk, c_pos: Vec3I) {
                 if n_block.type != .Air {
                     n_info := block_infos[n_block.type]
                     if !(.TEXTURE_TRANSPARENT in n_info.flags) && n_info.model == .Cube {
-                        excluded_faces += {Block_Face(face)}
+                        n_is_dynamic := false
+                        n_id, n_ok := world_get_tracker_id(n_pos)
+                        if n_ok && n_id in state.world.animations do n_is_dynamic = true
+                        
+                        if !n_is_dynamic {
+                            excluded_faces += {Block_Face(face)}
+                        }
                     }
                 }
             }
