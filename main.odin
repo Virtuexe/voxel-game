@@ -5,7 +5,7 @@ import rl "vendor:raylib"
 
 get_block_transform :: proc(block: Block) -> rl.Matrix {
     info := block_infos[block.type]
-    model_data := block_models[block.type]
+    model_data := &block_models[block.type]
     rot_mat := rl.Matrix(1)
     
     // Helper to map Cardinal to Block_Face

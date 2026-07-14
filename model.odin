@@ -211,7 +211,7 @@ get_block_center :: proc(block: Block) -> rl.Vector3 {
 // Returns an axis-aligned bounding box for the block in local space,
 // accounting for rotation and part animations.
 get_block_bbox :: proc(block: Block, pos: Vec3I) -> rl.BoundingBox {
-    model_data := block_models[block.type]
+    model_data := &block_models[block.type]
     rot_mat := get_block_transform(block)
     
     animator := animator_init()
@@ -274,7 +274,7 @@ rotate_bbox :: proc(base: rl.BoundingBox, rot: rl.Matrix) -> rl.BoundingBox {
 // Caller must pass a buffer of at least max_collisions to hold results.
 // Returns the slice of filled bboxes.
 get_block_bboxes :: proc(block: Block, buf: ^[8]rl.BoundingBox, pos: Vec3I) -> []rl.BoundingBox {
-    model_data := block_models[block.type]
+    model_data := &block_models[block.type]
     rot := get_block_transform(block)
     
     animator := animator_init()

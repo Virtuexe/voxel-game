@@ -35,31 +35,23 @@ chunk_mesher_add_model_parts :: proc(m: ^Chunk_Mesher, geom: ^Block_Geometry, of
         
         base_index := u16(len(m.positions[t_type]))
         
-        for p in geom.positions[group_face] {
-            p_trans := rl.Vector3Transform(p, transform)
+        group := group_face / 6
+        face := Block_Face(group_face % 6)
+        needs_lock_uv := lock_uv[group][face]
+        p_zero := rl.Vector3Transform({0, 0, 0}, transform)
+
+        for j in 0..<len(geom.positions[group_face]) {
+            p_trans := rl.Vector3Transform(geom.positions[group_face][j], transform)
             append(&m.positions[t_type], p_trans + offset)
-        }
-        for n in geom.normals[group_face] {
-            // Apply rotation to normal
-            p_trans := rl.Vector3Transform(n, transform)
-            p_zero := rl.Vector3Transform({0, 0, 0}, transform)
-            n_trans := p_trans - p_zero
-            append(&m.normals[t_type], linalg.normalize0(n_trans))
-        }
-        for uv, j in geom.texcoords[group_face] {
-            group := group_face / 6
-            face := Block_Face(group_face % 6)
-            final_uv := uv
             
-            if lock_uv[group][face] {
-                p_base := geom.positions[group_face][j]
-                p_trans := rl.Vector3Transform(p_base, transform)
-                n_base := geom.normals[group_face][j]
-                p_zero := rl.Vector3Transform({0,0,0}, transform)
-                n_trans := rl.Vector3Transform(n_base, transform) - p_zero
-                final_uv = get_global_projected_uv(p_trans, n_trans)
+            n_trans := rl.Vector3Transform(geom.normals[group_face][j], transform) - p_zero
+            append(&m.normals[t_type], linalg.normalize0(n_trans))
+            
+            if needs_lock_uv {
+                append(&m.texcoords[t_type], get_global_projected_uv(p_trans, n_trans))
+            } else {
+                append(&m.texcoords[t_type], geom.texcoords[group_face][j])
             }
-            append(&m.texcoords[t_type], final_uv)
         }
 
         for idx in geom.indices[group_face] {
@@ -136,7 +128,7 @@ chunk_build_mesh :: proc(chunk: ^Chunk, c_pos: Vec3I) {
         
         is_on_idx := block.is_on ? 1 : 0
         mask := transmute(u8)excluded_faces
-        model_data := block_models[block.type]
+        model_data := &block_models[block.type]
         
         geom := &model_data.geometries[is_on_idx][mask]
         t_types := model_data.t_types[is_on_idx]
