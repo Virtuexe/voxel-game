@@ -215,9 +215,7 @@ update_world_scheduled_actions :: proc() {
             if block_actions[a] != nil {
                 if id in state.world.traked_blocks {
                     pos := state.world.traked_blocks[id].pos
-                    block := world_get_block(pos)
-                    block_actions[a](pos, &block, data)
-                    world_set_block(pos, block)
+                    block_actions[a](pos, data)
                 }
             }
             world_untrack_block(id)

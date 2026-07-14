@@ -28,7 +28,7 @@ Action_Data :: struct {
     pushed_block: bool,
 }
 
-Block_Action_Proc :: proc(pos: Vec3I, block: ^Block, data: Action_Data)
+Block_Action_Proc :: proc(pos: Vec3I, data: Action_Data)
 
 block_actions := [Block_Action]Block_Action_Proc {
     .None = nil,
@@ -142,7 +142,8 @@ block_init :: proc() {
 }
 //TODO unload textures
 
-activate_wired_blocks :: proc(pos: Vec3I, block: ^Block, data: Action_Data) {
+activate_wired_blocks :: proc(pos: Vec3I, data: Action_Data) {
+    block := world_get_block(pos)
     if !block.has_wires do return
     
     if wires, ok := state.world.wires[pos]; ok {
@@ -152,31 +153,39 @@ activate_wired_blocks :: proc(pos: Vec3I, block: ^Block, data: Action_Data) {
                 target_block := world_get_block(target_pos)
                 info := block_infos[target_block.type]
                 if info.on_activate.type != .None {
-                    block_actions[info.on_activate.type](target_pos, &target_block, info.on_activate.data)
-                    world_set_block(target_pos, target_block)
+                    block_actions[info.on_activate.type](target_pos, info.on_activate.data)
                 }
             }
         }
     }
 }
-on_off :: proc(pos: Vec3I, block: ^Block, data: Action_Data) {
+on_off :: proc(pos: Vec3I, data: Action_Data) {
+    block := world_get_block(pos)
     block.is_on = !block.is_on
+    world_set_block(pos, block)
 }
-button_activate :: proc(pos: Vec3I, block: ^Block, data: Action_Data) {
+button_activate :: proc(pos: Vec3I, data: Action_Data) {
+    block := world_get_block(pos)
     if block.is_on do return
     block.is_on = true
+    world_set_block(pos, block)
     world_play_animation(.Button, pos)
     world_schedule_action(.Button_Deactivate, pos, animation_infos[.Button].end)
-    activate_wired_blocks(pos, block, {})
+    activate_wired_blocks(pos, {})
 }
-button_deactivate :: proc(pos: Vec3I, block: ^Block, data: Action_Data) {
+button_deactivate :: proc(pos: Vec3I, data: Action_Data) {
+    block := world_get_block(pos)
     block.is_on = false
+    world_set_block(pos, block)
 }
-lever_activate :: proc(pos: Vec3I, block: ^Block, data: Action_Data) {
+lever_activate :: proc(pos: Vec3I, data: Action_Data) {
+    block := world_get_block(pos)
     block.is_on = !block.is_on
-    activate_wired_blocks(pos, block, {})
+    world_set_block(pos, block)
+    activate_wired_blocks(pos, {})
 }
-piston_activate :: proc(pos: Vec3I, block: ^Block, data: Action_Data) {
+piston_activate :: proc(pos: Vec3I, data: Action_Data) {
+    block := world_get_block(pos)
     if block.is_on do return
 
     v := to_vec3i(face_to_normal(block.facing))
@@ -185,6 +194,7 @@ piston_activate :: proc(pos: Vec3I, block: ^Block, data: Action_Data) {
     if target_block.type != .Air && destination_block.type != .Air do return
 
     block.is_on = true
+    world_set_block(pos, block)
 
     pushed: bool
     if target_block.type != .Air && destination_block.type == .Air {
@@ -196,7 +206,8 @@ piston_activate :: proc(pos: Vec3I, block: ^Block, data: Action_Data) {
     world_schedule_action(.Piston_Deactivate, pos, animation_infos[.Piston_Push].end, {pushed_block = pushed})
     world_play_animation(.Piston_Push, pos)
 }
-piston_deactivate :: proc(pos: Vec3I, block: ^Block, data: Action_Data) {
+piston_deactivate :: proc(pos: Vec3I, data: Action_Data) {
+    block := world_get_block(pos)
     v := to_vec3i(face_to_normal(block.facing))
     destination_block := world_get_block(pos+v)
     target_block := world_get_block(pos+v*2)
@@ -208,14 +219,17 @@ piston_deactivate :: proc(pos: Vec3I, block: ^Block, data: Action_Data) {
     world_schedule_action(.Piston_Deactivate_Off, pos, animation_infos[.Piston_Pull].end)
     world_play_animation(.Piston_Pull, pos)
 }
-piston_deactivate_off :: proc(pos: Vec3I, block: ^Block, data: Action_Data) {
+piston_deactivate_off :: proc(pos: Vec3I, data: Action_Data) {
+    block := world_get_block(pos)
     block.is_on = false
+    world_set_block(pos, block)
 }
-torch_activate :: proc(pos: Vec3I, block: ^Block, data: Action_Data) {
+torch_activate :: proc(pos: Vec3I, data: Action_Data) {
+    block := world_get_block(pos)
     if !block.is_on {
-        block_actions[.Activate_Wired_Blocks](pos, block, data)
+        block_actions[.Activate_Wired_Blocks](pos, data)
     }
-    block_actions[.On_Off](pos, block, data)
+    block_actions[.On_Off](pos, data)
 }
 
 
