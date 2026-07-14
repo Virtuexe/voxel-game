@@ -51,10 +51,13 @@ chunk_mesher_add_model_parts :: proc(m: ^Chunk_Mesher, geom: ^Block_Geometry, of
             face := Block_Face(group_face % 6)
             final_uv := uv
             
-            if lock_uv[group][face] && (face == .Top || face == .Bottom) {
-                p_trans := rl.Vector3Transform(geom.positions[group_face][j], transform)
-                world_p := p_trans + offset
-                final_uv = {world_p.x, world_p.z}
+            if lock_uv[group][face] {
+                p_base := geom.positions[group_face][j]
+                p_trans := rl.Vector3Transform(p_base, transform)
+                n_base := geom.normals[group_face][j]
+                p_zero := rl.Vector3Transform({0,0,0}, transform)
+                n_trans := rl.Vector3Transform(n_base, transform) - p_zero
+                final_uv = get_global_projected_uv(p_trans, n_trans)
             }
             append(&m.texcoords[t_type], final_uv)
         }

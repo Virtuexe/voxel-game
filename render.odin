@@ -17,7 +17,6 @@ set_face_uvs :: proc(c: [^]f32, face_idx: int, uv_data: [8]f32) {
 
 white_texture: rl.Texture2D
 block_shader: rl.Shader
-lock_uv_loc: i32
 
 init_shaders :: proc() {
     vs := `
@@ -48,12 +47,8 @@ init_shaders :: proc() {
     out vec4 finalColor;
     uniform sampler2D texture0;
     uniform vec4 colDiffuse;
-    uniform float lockUV;
     void main() {
         vec2 uv = fragTexCoord;
-        if (lockUV > 0.5 && abs(fragNormal.y) > 0.5) {
-            uv = fragWorldPos.xz;
-        }
         vec4 texelColor = texture(texture0, uv);
         if (texelColor.a == 0.0) discard;
         
@@ -69,7 +64,6 @@ init_shaders :: proc() {
     
     // We can directly cast Odin raw string literals to cstring for raylib
     block_shader = rl.LoadShaderFromMemory(cstring(raw_data(vs)), cstring(raw_data(fs)))
-    lock_uv_loc = rl.GetShaderLocation(block_shader, "lockUV")
 }
 
 
@@ -99,8 +93,6 @@ draw_world_chunks :: proc() {
         }
         
         if chunk.has_model {
-            lock_uv: f32 = 0.0
-            rl.SetShaderValue(block_shader, lock_uv_loc, &lock_uv, .FLOAT)
             chunk_transform := rl.MatrixTranslate(f32(c_pos.x * 16), f32(c_pos.y * 16), f32(c_pos.z * 16))
             for m_idx in 0..<chunk.model.meshCount {
                 if chunk.model.meshes[m_idx].vertexCount == 0 do continue
@@ -136,11 +128,6 @@ draw_world_chunks :: proc() {
                 
                 mat_idx := model_to_draw.meshMaterial[m_idx]
                 group := int(mat_idx) / 6
-                face := Block_Face(int(mat_idx) % 6)
-                
-                lock_uv: f32 = tex_info.lock_uv_y[group][face] ? 1.0 : 0.0
-                rl.SetShaderValue(block_shader, lock_uv_loc, &lock_uv, .FLOAT)
-                
                 mat_transform := rl.MatrixTranslate(p.x, p.y, p.z) * animator.global_transforms[group] * model_to_draw.transform
                 mesh_transform := mat_transform * animator.local_transforms[group]
                 

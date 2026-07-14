@@ -28,6 +28,8 @@ block_models: [Block_Type]Block_Model_Data
 
 Block_Model :: enum {Cube, Slab, Decal, Stairs, Piston, Button, Torch, Lever,}
 
+dynamic_models: map[Block]rl.Model
+
 init_models :: proc() {
     img := rl.GenImageColor(1, 1, rl.WHITE)
     white_texture = rl.LoadTextureFromImage(img)
@@ -120,10 +122,79 @@ get_base_model :: proc(block: Block) -> rl.Model {
     return block_models[block.type].models[block.is_on ? 1 : 0]
 }
 
+get_global_projected_uv :: proc(p_trans: Vec3, n_trans: Vec3) -> Vec2 {
+    if abs(n_trans.y) > 0.5 {
+        return {p_trans.x, p_trans.z}
+    } else if abs(n_trans.z) > 0.5 {
+        if n_trans.z > 0.5 {
+            return {p_trans.x, 1.0 - p_trans.y} // South
+        } else {
+            return {1.0 - p_trans.x, 1.0 - p_trans.y} // North
+        }
+    } else {
+        if n_trans.x > 0.5 {
+            return {1.0 - p_trans.z, 1.0 - p_trans.y} // East
+        } else {
+            return {p_trans.z, 1.0 - p_trans.y} // West
+        }
+    }
+}
+
 // Returns the model with the correct rotation transform applied.
 // Caller should restore model.transform after drawing if needed.
 get_block_model :: proc(block: Block) -> rl.Model {
-    model := get_base_model(block)
+    info := block_infos[block.type]
+    needs_dynamic := false
+    
+    for group in 0..<MAX_TEXTURE_GROUPS {
+        for face in Block_Face {
+            if info.texture.lock_uv_y[group][face] {
+                needs_dynamic = true
+                break
+            }
+        }
+    }
+    
+    model: rl.Model
+    if !needs_dynamic {
+        model = get_base_model(block)
+    } else {
+        if block in dynamic_models {
+            model = dynamic_models[block]
+        } else {
+            b := builder_init()
+            facing := build_block_geometry(&b, block)
+            rot_mat := get_block_transform(block)
+            
+            for group_face in 0..<MAX_TEXTURE_GROUPS * 6 {
+                group := group_face / 6
+                face := Block_Face(group_face % 6)
+                if info.texture.lock_uv_y[group][face] {
+                    for i in 0..<len(b.positions[group_face]) {
+                        p_base := b.positions[group_face][i]
+                        p_trans := rl.Vector3Transform(p_base, rot_mat)
+                        n_base := b.normals[group_face][i]
+                        p_zero := rl.Vector3Transform({0,0,0}, rot_mat)
+                        n_trans := rl.Vector3Transform(n_base, rot_mat) - p_zero
+                        b.texcoords[group_face][i] = get_global_projected_uv(p_trans, n_trans)
+                    }
+                }
+            }
+            
+            model = builder_build(&b, facing)
+            builder_destroy(&b)
+            
+            for group in 0..<MAX_TEXTURE_GROUPS {
+                for face in Block_Face {
+                    idx := group * 6 + int(face)
+                    t_type := block_models[block.type].t_types[block.is_on ? 1 : 0][idx]
+                    rl.SetMaterialTexture(&model.materials[idx], .ALBEDO, textures[t_type])
+                }
+            }
+            dynamic_models[block] = model
+        }
+    }
+    
     rot_mat := get_block_transform(block)
     model.transform = model.transform * rot_mat
     return model
