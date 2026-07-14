@@ -112,10 +112,10 @@ main :: proc() {
     rl.UnloadTexture(crosshair_texture)
 
     for &data in block_models {
-        if data.model.meshCount > 0 {
-            rl.UnloadModel(data.model)
-        }
         for is_on in 0..<2 {
+            if data.models[is_on].meshCount > 0 {
+                rl.UnloadModel(data.models[is_on])
+            }
             for part in data.parts[is_on] {
                 delete(part.collision_bboxes)
             }

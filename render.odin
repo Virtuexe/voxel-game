@@ -120,20 +120,6 @@ draw_world_chunks :: proc() {
             global_pos := get_global_pos(c_pos, l_pos)
             p := to_vec3(global_pos)
             model_to_draw := get_block_model(block)
-            
-            for i in 0..<MAX_TEXTURE_GROUPS * 6 {
-                group := i / 6
-                face := Block_Face(i % 6)
-                t_type := tex_info.textures[group][face]
-                
-                if block.type == .Torch && t_type == .Torch_On && !block.is_on {
-                    t_type = .Torch_Off
-                }
-                
-                t := textures[t_type]
-                // We only have active meshes mapped properly if their material matches
-                rl.SetMaterialTexture(&model_to_draw.materials[i], .ALBEDO, t)
-            }
             animator := animator_init()
             if id, ok := world_get_tracker_id(global_pos); ok {
                 if anims, ok := state.world.animations[id]; ok {

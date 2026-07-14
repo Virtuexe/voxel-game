@@ -17,7 +17,7 @@ Block_Part :: struct {
 }
 
 Block_Model_Data :: struct {
-    model: rl.Model,
+    models: [2]rl.Model, // [0 = is_on=false, 1 = is_on=true]
     parts: [2][]Block_Part, // [0 = is_on=false, 1 = is_on=true]
     center: Vec3,
     base_facing: Block_Face,
@@ -41,19 +41,21 @@ init_models :: proc() {
         
         data: Block_Model_Data
         
-        // Build base visual model (is_on = false)
-        b := builder_init()
-        facing := build_block_geometry(&b, Block{type = type})
-        data.model = builder_build(&b, facing)
-        data.center = b.center
-        data.base_facing = facing
-        builder_destroy(&b)
-        
         for is_on_idx in 0..<2 {
             is_on := is_on_idx == 1
             block := Block{type = type, is_on = is_on}
             
-            // Resolve texture types for this state
+            // Build base visual model for this state
+            b := builder_init()
+            facing := build_block_geometry(&b, block)
+            model := builder_build(&b, facing)
+            
+            if is_on_idx == 0 {
+                data.center = b.center
+                data.base_facing = facing
+            }
+            
+            // Resolve texture types for this state and apply textures
             for group in 0..<MAX_TEXTURE_GROUPS {
                 for face in Block_Face {
                     idx := group * 6 + int(face)
@@ -62,8 +64,14 @@ init_models :: proc() {
                         t_type = .Torch_Off
                     }
                     data.t_types[is_on_idx][idx] = t_type
+                    
+                    t := textures[t_type]
+                    rl.SetMaterialTexture(&model.materials[idx], .ALBEDO, t)
                 }
             }
+            
+            data.models[is_on_idx] = model
+            builder_destroy(&b)
             
             // Build parts (collision and visual hitboxes)
             b_parts := builder_init()
@@ -109,7 +117,7 @@ init_models :: proc() {
 
 // Returns the base model for a block type (no transform applied)
 get_base_model :: proc(block: Block) -> rl.Model {
-    return block_models[block.type].model
+    return block_models[block.type].models[block.is_on ? 1 : 0]
 }
 
 // Returns the model with the correct rotation transform applied.
