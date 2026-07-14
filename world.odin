@@ -123,12 +123,19 @@ world_set_block :: proc(pos: Vec3I, block: Block) {
         state.world.chunks[c_pos] = chunk
     }
     chunk := state.world.chunks[c_pos]
-    chunk.is_dirty = true
     l_pos := get_local_pos(pos)
     block_key := chunk_provide_block_key(chunk, block)
     chunk.block_keys[flatten(l_pos)] = block_key
 
-    // Invalidate neighbors if on boundary
+    world_mark_chunk_dirty(pos)
+}
+
+world_mark_chunk_dirty :: proc(pos: Vec3I) {
+    c_pos := get_chunk_pos(pos)
+    if c_pos in state.world.chunks {
+        state.world.chunks[c_pos].is_dirty = true
+    }
+    l_pos := get_local_pos(pos)
     if l_pos.x == 0 && (c_pos - {1, 0, 0}) in state.world.chunks do state.world.chunks[c_pos - {1, 0, 0}].is_dirty = true
     if l_pos.x == 15 && (c_pos + {1, 0, 0}) in state.world.chunks do state.world.chunks[c_pos + {1, 0, 0}].is_dirty = true
     if l_pos.y == 0 && (c_pos - {0, 1, 0}) in state.world.chunks do state.world.chunks[c_pos - {0, 1, 0}].is_dirty = true
@@ -207,7 +214,10 @@ update_world_scheduled_actions :: proc() {
             unordered_remove(&state.world.scheduled_actions, i)
             if block_actions[a] != nil {
                 if id in state.world.traked_blocks {
-                    block_actions[a](state.world.traked_blocks[id].pos, data)
+                    pos := state.world.traked_blocks[id].pos
+                    block := world_get_block(pos)
+                    block_actions[a](pos, &block, data)
+                    world_set_block(pos, block)
                 }
             }
             world_untrack_block(id)
@@ -234,6 +244,7 @@ world_play_animation :: proc(type: Animation_Type, pos: Vec3I, from: Vec3I = {})
         }
         anims.count += 1
         state.world.animations[id] = anims
+        world_mark_chunk_dirty(pos)
     }
 }
 update_world_animations :: proc() {
@@ -258,9 +269,13 @@ update_world_animations :: proc() {
     }
     
     for id in untrack_list {
-        world_untrack_block(id)
-        if state.world.animations[id].count == 0 {
-            delete_key(&state.world.animations, id)
+        if id in state.world.traked_blocks {
+            pos := state.world.traked_blocks[id].pos
+            world_untrack_block(id)
+            if state.world.animations[id].count == 0 {
+                delete_key(&state.world.animations, id)
+                world_mark_chunk_dirty(pos)
+            }
         }
     }
 }

@@ -3,6 +3,13 @@ package voxel_game
 import rl "vendor:raylib"
 import "core:slice"
 
+Block_Geometry :: struct {
+    positions: [MAX_TEXTURE_GROUPS * 6][]Vec3,
+    normals:   [MAX_TEXTURE_GROUPS * 6][]Vec3,
+    texcoords: [MAX_TEXTURE_GROUPS * 6][]Vec2,
+    indices:   [MAX_TEXTURE_GROUPS * 6][]u16,
+}
+
 Block_Part :: struct {
     group_id: int,
     collision_bboxes: []rl.BoundingBox,
@@ -11,9 +18,11 @@ Block_Part :: struct {
 
 Block_Model_Data :: struct {
     model: rl.Model,
-    parts: []Block_Part,
+    parts: [2][]Block_Part, // [0 = is_on=false, 1 = is_on=true]
     center: Vec3,
     base_facing: Block_Face,
+    geometries: [2][64]Block_Geometry,
+    t_types: [2][MAX_TEXTURE_GROUPS * 6]Texture_Type,
 }
 block_models: [Block_Type]Block_Model_Data
 
@@ -29,31 +38,72 @@ init_models :: proc() {
         
         info := block_infos[type]
         tex_info := block_infos[type].texture
+        
+        data: Block_Model_Data
+        
+        // Build base visual model (is_on = false)
         b := builder_init()
         facing := build_block_geometry(&b, Block{type = type})
+        data.model = builder_build(&b, facing)
+        data.center = b.center
+        data.base_facing = facing
+        builder_destroy(&b)
         
-        m := builder_build(&b, facing)
-        
-        parts: [dynamic]Block_Part
-        for i in 0..<MAX_TEXTURE_GROUPS {
-            if len(b.collision_bboxes[i]) > 0 || len(b.positions[i*6]) > 0 { // Check if group has collision or meshes
-                v_bbox := builder_get_visual_bbox(&b, i)
-                append(&parts, Block_Part{
-                    group_id = i,
-                    collision_bboxes = slice.clone(b.collision_bboxes[i][:]),
-                    visual_bbox = v_bbox,
-                })
+        for is_on_idx in 0..<2 {
+            is_on := is_on_idx == 1
+            block := Block{type = type, is_on = is_on}
+            
+            // Resolve texture types for this state
+            for group in 0..<MAX_TEXTURE_GROUPS {
+                for face in Block_Face {
+                    idx := group * 6 + int(face)
+                    t_type := tex_info.textures[group][face]
+                    if block.type == .Torch && t_type == .Torch_On && !block.is_on {
+                        t_type = .Torch_Off
+                    }
+                    data.t_types[is_on_idx][idx] = t_type
+                }
+            }
+            
+            // Build parts (collision and visual hitboxes)
+            b_parts := builder_init()
+            build_block_geometry(&b_parts, block)
+            
+            parts: [dynamic]Block_Part
+            for i in 0..<MAX_TEXTURE_GROUPS {
+                if len(b_parts.collision_bboxes[i]) > 0 || len(b_parts.positions[i*6]) > 0 {
+                    v_bbox := builder_get_visual_bbox(&b_parts, i)
+                    append(&parts, Block_Part{
+                        group_id = i,
+                        collision_bboxes = slice.clone(b_parts.collision_bboxes[i][:]),
+                        visual_bbox = v_bbox,
+                    })
+                }
+            }
+            data.parts[is_on_idx] = parts[:]
+            builder_destroy(&b_parts)
+            
+            // Build and cache all 64 chunk meshing combinations
+            for mask in 0..<64 {
+                exc_faces := transmute(bit_set[Block_Face])u8(mask)
+                b_geom := builder_init()
+                build_block_geometry(&b_geom, block, exc_faces)
+                
+                geom: Block_Geometry
+                for group_face in 0..<MAX_TEXTURE_GROUPS * 6 {
+                    if len(b_geom.positions[group_face]) > 0 {
+                        geom.positions[group_face] = slice.clone(b_geom.positions[group_face][:])
+                        geom.normals[group_face] = slice.clone(b_geom.normals[group_face][:])
+                        geom.texcoords[group_face] = slice.clone(b_geom.texcoords[group_face][:])
+                        geom.indices[group_face] = slice.clone(b_geom.indices[group_face][:])
+                    }
+                }
+                data.geometries[is_on_idx][mask] = geom
+                builder_destroy(&b_geom)
             }
         }
         
-        block_models[type] = {
-            model = m,
-            parts = parts[:], // slice out of dynamic array
-            center = b.center,
-            base_facing = facing,
-        }
-        
-        builder_destroy(&b)
+        block_models[type] = data
     }
 }
 
@@ -99,7 +149,7 @@ get_block_bbox :: proc(block: Block, pos: Vec3I) -> rl.BoundingBox {
     new_max := rl.Vector3{-99999, -99999, -99999}
     has_parts := false
 
-    for part in model_data.parts {
+    for part in model_data.parts[block.is_on ? 1 : 0] {
         has_parts = true
         local_trans := animator.local_transforms[part.group_id]
         global_trans := animator.global_transforms[part.group_id]
@@ -159,15 +209,15 @@ get_block_bboxes :: proc(block: Block, buf: ^[8]rl.BoundingBox, pos: Vec3I) -> [
         }
     }
     count := 0
-    for part in model_data.parts {
+    for part in model_data.parts[block.is_on ? 1 : 0] {
         local_trans := animator.local_transforms[part.group_id]
         global_trans := animator.global_transforms[part.group_id]
         final_mat := global_trans * rot * local_trans
+        
         for bbox in part.collision_bboxes {
-            if count < len(buf) {
-                buf[count] = rotate_bbox(bbox, final_mat)
-                count += 1
-            }
+            if count >= len(buf) do break
+            buf[count] = rotate_bbox(bbox, final_mat)
+            count += 1
         }
     }
     return buf[:count]

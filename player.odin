@@ -235,7 +235,9 @@ update_player :: proc(delta: f32) {
                 item_actions[item_info.on_right_click](item_p)
                 state.held_item = item_p^
             } else if block_info.on_right_click.type != .None {
-                block_actions[block_info.on_right_click.type](state.look_target, block_info.on_right_click.data)
+                block := world_get_block(state.look_target)
+                block_actions[block_info.on_right_click.type](state.look_target, &block, block_info.on_right_click.data)
+                world_set_block(state.look_target, block)
             }
         }
     }

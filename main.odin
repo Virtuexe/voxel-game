@@ -115,10 +115,22 @@ main :: proc() {
         if data.model.meshCount > 0 {
             rl.UnloadModel(data.model)
         }
-        for part in data.parts {
-            delete(part.collision_bboxes)
+        for is_on in 0..<2 {
+            for part in data.parts[is_on] {
+                delete(part.collision_bboxes)
+            }
+            delete(data.parts[is_on])
+            
+            for mask in 0..<64 {
+                geom := &data.geometries[is_on][mask]
+                for gf in 0..<MAX_TEXTURE_GROUPS * 6 {
+                    delete(geom.positions[gf])
+                    delete(geom.normals[gf])
+                    delete(geom.texcoords[gf])
+                    delete(geom.indices[gf])
+                }
+            }
         }
-        delete(data.parts)
     }
     rl.CloseWindow()
 }

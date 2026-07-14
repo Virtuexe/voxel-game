@@ -24,41 +24,42 @@ chunk_mesher_destroy :: proc(m: ^Chunk_Mesher) {
     }
 }
 
-// Copy a mesh from block builder to the chunk builder, applying translation.
+// Copy a mesh from block geometry to the chunk builder, applying translation.
 // It applies the vertices to the specified texture type.
-chunk_mesher_add_model_parts :: proc(m: ^Chunk_Mesher, b: ^Block_Model_Builder, offset: [3]f32, transform: rl.Matrix, t_types: [MAX_TEXTURE_GROUPS * 6]Texture_Type, lock_uv: [MAX_TEXTURE_GROUPS][Block_Face]bool) {
+chunk_mesher_add_model_parts :: proc(m: ^Chunk_Mesher, geom: ^Block_Geometry, offset: [3]f32, transform: rl.Matrix, t_types: [MAX_TEXTURE_GROUPS * 6]Texture_Type, lock_uv: [MAX_TEXTURE_GROUPS][Block_Face]bool) {
     for group_face in 0..<MAX_TEXTURE_GROUPS * 6 {
-        vcount := len(b.positions[group_face])
+        vcount := len(geom.positions[group_face])
         if vcount == 0 do continue
         
         t_type := t_types[group_face]
         
         base_index := u16(len(m.positions[t_type]))
         
-        for p in b.positions[group_face] {
+        for p in geom.positions[group_face] {
             p_trans := rl.Vector3Transform(p, transform)
             append(&m.positions[t_type], p_trans + offset)
         }
-        for n in b.normals[group_face] {
+        for n in geom.normals[group_face] {
             // Apply rotation to normal
             p_trans := rl.Vector3Transform(n, transform)
             p_zero := rl.Vector3Transform({0, 0, 0}, transform)
             n_trans := p_trans - p_zero
             append(&m.normals[t_type], linalg.normalize0(n_trans))
         }
-        for uv, j in b.texcoords[group_face] {
+        for uv, j in geom.texcoords[group_face] {
             group := group_face / 6
             face := Block_Face(group_face % 6)
             final_uv := uv
             
             if lock_uv[group][face] && (face == .Top || face == .Bottom) {
-                p_trans := rl.Vector3Transform(b.positions[group_face][j], transform)
+                p_trans := rl.Vector3Transform(geom.positions[group_face][j], transform)
                 world_p := p_trans + offset
                 final_uv = {world_p.x, world_p.z}
             }
             append(&m.texcoords[t_type], final_uv)
         }
-        for idx in b.indices[group_face] {
+
+        for idx in geom.indices[group_face] {
             append(&m.indices[t_type], base_index + idx)
         }
     }
@@ -130,27 +131,16 @@ chunk_build_mesh :: proc(chunk: ^Chunk, c_pos: Vec3I) {
             }
         }
         
-        // Generate geometry in the generic builder
-        builder_clear(&b)
-        build_block_geometry(&b, block, excluded_faces)
+        is_on_idx := block.is_on ? 1 : 0
+        mask := transmute(u8)excluded_faces
+        model_data := block_models[block.type]
         
-        // Resolve Texture Types for each material group/face
-        t_types: [MAX_TEXTURE_GROUPS * 6]Texture_Type
-        for group in 0..<MAX_TEXTURE_GROUPS {
-            for face in Block_Face {
-                idx := group * 6 + int(face)
-                t_type := tex_info.textures[group][face]
-                if block.type == .Torch && t_type == .Torch_On && !block.is_on {
-                    t_type = .Torch_Off
-                }
-                t_types[idx] = t_type
-            }
-        }
-        
+        geom := &model_data.geometries[is_on_idx][mask]
+        t_types := model_data.t_types[is_on_idx]
         rot_mat := get_block_transform(block)
         
         // Append generated geometry to the chunk mesher grouped by Texture_Type
-        chunk_mesher_add_model_parts(&m, &b, to_vec3(l_pos), rot_mat, t_types, tex_info.lock_uv_y)
+        chunk_mesher_add_model_parts(&m, geom, to_vec3(l_pos), rot_mat, t_types, tex_info.lock_uv_y)
     }
     
     active_mesh_count := 0
