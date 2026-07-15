@@ -243,26 +243,15 @@ Block :: struct {
     direction: Cardinal,
     has_wires: bool,
     is_on: bool,
-    using data: Block_Data,
+    using unique: Block_Data_Unique,
 }
-Block_Data :: struct #raw_union {
+Block_Data_Unique :: struct #raw_union {
 }
 Wire :: struct {
     to: int
 }
-
-are_blocks_equal :: proc(a, b: Block) -> bool {
-    if a.type != b.type do return false
-    if a.facing != b.facing do return false
-    if a.direction != b.direction do return false
-    if a.has_wires != b.has_wires do return false
-    if a.is_on != b.is_on do return false
-    
-    return true
-}
-
 //rework, should be in item.odin
-place_base_block :: proc(block: Block) {
+get_placement_block :: proc(block: Block) -> Block {
     block := block
     info := block_infos[block.type]
     has_cardinal := .HAS_CARDINAL in info.flags
@@ -277,5 +266,5 @@ place_base_block :: proc(block: Block) {
         block.facing = state.place_pitch_face
     }
     
-    world_set_block(state.place_target, block)
+    return block
 }

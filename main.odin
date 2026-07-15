@@ -159,11 +159,12 @@ update :: proc(ustate: ^UI_State) {
     delta := get_delta()
 
     update_input()
+    update_code()
+    update_world()
+    
     update_player(delta)
 
     update_ui(ustate)
-    update_code()
-    update_world()
 }
 
 draw :: proc(ustate: ^UI_State) {

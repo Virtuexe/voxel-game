@@ -62,7 +62,7 @@ update_player :: proc(delta: f32) {
     
     if !state.is_shifting {
         // Temporarily set standing height to test for collision
-        state.collider_size.y = 2.0
+        state.collider_size.y = 1.8
         if is_player_colliding(state.position) {
             state.is_shifting = true // Force crouching if standing would clip
         }
@@ -71,8 +71,8 @@ update_player :: proc(delta: f32) {
     move_speed := state.move_speed
     if state.is_shifting {
         move_speed *= 0.5
-        state.collider_size.y = 1.5
-        state.eye_height = 1.3
+        state.collider_size.y = 1.4
+        state.eye_height = 1.2
     } else {
         if is_down(.Sprint) {
             if state.is_flying {
@@ -81,8 +81,8 @@ update_player :: proc(delta: f32) {
                 move_speed *= 1.5
             }
         }
-        state.collider_size.y = 2.0
-        state.eye_height = 1.8
+        state.collider_size.y = 1.8
+        state.eye_height = 1.6
     }
     wasd: Vec3
     if state.use_key_input do wasd = get_wasd_input(forward_move, right_move, up)

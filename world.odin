@@ -53,7 +53,7 @@ world_init :: proc() {
 //Returns the block id from palette. If the block is not present it will get created.
 chunk_provide_block_key :: proc(chunk: ^Chunk, block: Block) -> int {
     for search_block, id in chunk.palette {
-        if are_blocks_equal(search_block, block) {
+        if search_block == block {
             return id
         }
     }
@@ -64,7 +64,7 @@ chunk_provide_block_key :: proc(chunk: ^Chunk, block: Block) -> int {
 //Return the block id from palette -1 if not found.
 chunk_get_block_key :: proc(chunk: ^Chunk, block: Block) -> int {
     for search_block, id in chunk.palette {
-        if are_blocks_equal(search_block, block) {
+        if search_block == block {
             return id
         }
     }

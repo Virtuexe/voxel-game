@@ -189,8 +189,9 @@ block_place :: proc(item: ^Item) {
     block_type, ok := items[item.type].block.?
     if !ok do return
     block := Block{type=block_type}
+    block = get_placement_block(block)
     if is_overlapping(state.position, state.place_target, block) do return
     if world_get_block(state.place_target).type != .Air do return
-    place_base_block(block)
+    world_set_block(state.place_target, block)
     raycast()
 }

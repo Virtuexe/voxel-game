@@ -100,6 +100,6 @@ state := State {
     },
     collider = {
         position = {0, 5, 5},
-        collider_size = Vec3{0.5, 2, 0.5},
+        collider_size = Vec3{0.6, 1.8, 0.6},
     },
 }
