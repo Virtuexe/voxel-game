@@ -6,7 +6,7 @@ Texture_Type :: enum {
     Dirt, Stone, Cobblestone, Glass, Planks,
     Slab_Side, Slab_Top,
     Piston_Side, Piston_Top, Piston_Bottom, Piston_Inner,
-    Torch_On, Torch_Off, Lever,
+    Torch_On, Torch_Off, Lever, Repeater_Off, Repeater_On,
     //Items
     Wire, Copper_Wire
 }
@@ -28,6 +28,8 @@ texture_paths := [Texture_Type]cstring {
     .Torch_On = "assets/torch.png",
     .Torch_Off = "assets/torch_off.png",
     .Lever = "assets/lever.png",
+    .Repeater_Off = "assets/repeater.png",
+    .Repeater_On = "assets/repeater_on.png",
 }
 
 textures: [Texture_Type]rl.Texture2D
@@ -58,7 +60,7 @@ UV_Rect :: struct {
     size: [2]f32,
 }
 
-MAX_TEXTURE_GROUPS :: 4
+MAX_TEXTURE_GROUPS :: 8
 
 fill_textures :: proc(tex: Texture_Type) -> [Block_Face]Texture_Type {
     return {.Top = tex, .Bottom = tex, .North = tex, .South = tex, .East = tex, .West = tex}
@@ -133,11 +135,31 @@ init_block_textures :: proc() {
         case .Lever:
             // Group 0: Cobblestone base
             texture.textures[0] = fill_textures(.Cobblestone)
-            //texture.lock_uv_y[0] = fill_lock_uv_y(true)
             // Group 1: Lever Stick
             texture.textures[1] = fill_textures(.Lever)
             texture.uv_rects[1] = fill_uv_rects(pixel_uv({{7, 6}, {2, 10}}))
             texture.uv_rects[1][.Top] = pixel_uv({{7, 6}, {2, 2}})
+            texture.uv_rects[1][.Bottom] = pixel_uv({{7, 14}, {2, 2}})
+        case .Repeater:
+            // Group 0: Base
+            texture.textures[0] = fill_textures(.Stone)
+            texture.textures[0][.Top] = .Repeater_Off
+            
+            // Group 1 & 2: Torch 1
+            texture.textures[1] = fill_textures(.Torch_Off)
+            texture.uv_rects[1] = fill_uv_rects(pixel_uv({{7, 6}, {2, 10}}))
+            texture.uv_rects[1][.Top] = pixel_uv({{7, 6}, {2, 2}})
+            texture.uv_rects[1][.Bottom] = pixel_uv({{7, 14}, {2, 2}})
+            texture.textures[2] = fill_textures(.Torch_Off)
+            texture.uv_rects[2] = fill_uv_rects(pixel_uv({{6, 5}, {1, 1}}))
+            
+            // Group 3 & 4: Torch 2
+            texture.textures[3] = fill_textures(.Torch_Off)
+            texture.uv_rects[3] = fill_uv_rects(pixel_uv({{7, 6}, {2, 10}}))
+            texture.uv_rects[3][.Top] = pixel_uv({{7, 6}, {2, 2}})
+            texture.uv_rects[3][.Bottom] = pixel_uv({{7, 14}, {2, 2}})
+            texture.textures[4] = fill_textures(.Torch_Off)
+            texture.uv_rects[4] = fill_uv_rects(pixel_uv({{6, 5}, {1, 1}}))
         }
     }
 }

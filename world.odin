@@ -3,10 +3,15 @@ import rl "vendor:raylib"
 import "core:math"
 import "core:fmt"
 
+Action_Queue :: enum {
+    Normal,
+    Late,
+}
+
 World_State :: struct {
     chunks: map[Vec3I]^Chunk,
     wires: map[Vec3I][dynamic]Wire,
-    scheduled_actions: [dynamic]Scheduled_Action,
+    scheduled_actions: [Action_Queue][dynamic]Scheduled_Action,
     animations: map[int]Block_Animations,
     traked_blocks: map[int]Block_Tracker,
     next_id: int
@@ -36,7 +41,7 @@ Chunk :: struct {
 world_init :: proc() {
     state.world.chunks = make(map[Vec3I]^Chunk)
     state.world.wires = make(map[Vec3I][dynamic]Wire)
-    state.world.scheduled_actions = make([dynamic]Scheduled_Action)
+    for q in Action_Queue do state.world.scheduled_actions[q] = make([dynamic]Scheduled_Action)
     state.world.traked_blocks = make(map[int]Block_Tracker)
     state.world.animations = make(map[int]Block_Animations)
     
@@ -188,9 +193,9 @@ world_move_block :: proc(from_pos, to_pos: Vec3I) {
 
 
 
-world_schedule_action :: proc(action: Block_Action, pos: Vec3I, delay: f32, data: Action_Data = {}) {
+world_schedule_action :: proc(action: Block_Action, pos: Vec3I, delay: f32, data: Action_Data = {}, queue: Action_Queue = .Normal) {
     id := world_track_block(pos)
-    append(&state.world.scheduled_actions, Scheduled_Action{
+    append(&state.world.scheduled_actions[queue], Scheduled_Action{
         action = action,
         block_id = id,
         data = data,
@@ -204,23 +209,25 @@ update_world :: proc() {
 }
 update_world_scheduled_actions :: proc() {
     delta := f32(rl.GetFrameTime())
-    for i := 0; i < len(state.world.scheduled_actions); {
-        action := &state.world.scheduled_actions[i]
-        action.time_left -= delta
-        if action.time_left <= 0 {
-            a := action.action
-            id := action.block_id
-            data := action.data
-            unordered_remove(&state.world.scheduled_actions, i)
-            if block_actions[a] != nil {
-                if id in state.world.traked_blocks {
-                    pos := state.world.traked_blocks[id].pos
-                    block_actions[a](pos, data)
+    for q in Action_Queue {
+        for i := 0; i < len(state.world.scheduled_actions[q]); {
+            action := &state.world.scheduled_actions[q][i]
+            action.time_left -= delta
+            if action.time_left <= 0 {
+                a := action.action
+                id := action.block_id
+                data := action.data
+                unordered_remove(&state.world.scheduled_actions[q], i)
+                if block_actions[a] != nil {
+                    if id in state.world.traked_blocks {
+                        pos := state.world.traked_blocks[id].pos
+                        block_actions[a](pos, data)
+                    }
                 }
+                world_untrack_block(id)
+            } else {
+                i += 1
             }
-            world_untrack_block(id)
-        } else {
-            i += 1
         }
     }
 }

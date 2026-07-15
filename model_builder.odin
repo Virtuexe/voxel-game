@@ -268,9 +268,14 @@ build_block_geometry :: proc(b: ^Block_Model_Builder, block: Block, excluded_fac
         builder_add_box(b, {0.3, 0.4, 0.9}, {0.7, 0.6, 1}, excluded_faces + {.South})
         builder_set_center(b, {0.5, 0.5, 1})
     case .Torch:
-        builder_add_box(b, px_vec({7, 0, 7}), px_vec({9, 10, 9}), {.Bottom}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
-        builder_add_inverted_box(b, px_vec({6.5, 7.5, 6.5}), px_vec({9.5, 10.5, 9.5}), excluded_faces, 1, tex_info.uv_rotations[1], tex_info.uv_rects[1])
+        builder_add_torch_geometry(b, {0, 0, 0}, 0, excluded_faces, tex_info)
         builder_set_center(b, px_vec({8, 5, 8}))
+        facing = .Top
+    case .Repeater:
+        builder_add_box(b, px_vec({0, 0, 0}), px_vec({16, 2, 16}), {.Bottom}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
+        builder_add_torch_geometry(b, px_vec({0, 2, -4}), 1, excluded_faces, tex_info)
+        builder_add_torch_geometry(b, px_vec({0, 2, 4}), 3, excluded_faces, tex_info)
+        builder_set_center(b, px_vec({8, 1, 8}))
         facing = .Top
     case .Lever:
         builder_add_box(b, px_vec({5, 0, 4}), px_vec({11, 3, 12}), {.Bottom}, 0, tex_info.uv_rotations[0], tex_info.uv_rects[0])
@@ -283,6 +288,12 @@ build_block_geometry :: proc(b: ^Block_Model_Builder, block: Block, excluded_fac
     
     return facing
 }
+
+builder_add_torch_geometry :: proc(b: ^Block_Model_Builder, offset: [3]f32, group_base: int, excluded_faces: bit_set[Block_Face], tex_info: Block_Texture) {
+    builder_add_box(b, px_vec({7, 0, 7}) + offset, px_vec({9, 10, 9}) + offset, {.Bottom}, group_base, tex_info.uv_rotations[group_base], tex_info.uv_rects[group_base])
+    builder_add_inverted_box(b, px_vec({6.5, 7.5, 6.5}) + offset, px_vec({9.5, 10.5, 9.5}) + offset, excluded_faces, group_base + 1, tex_info.uv_rotations[group_base + 1], tex_info.uv_rects[group_base + 1])
+}
+
 
 builder_add_inverted_quad :: proc(b: ^Block_Model_Builder, face: Block_Face, min_p, max_p: [3]f32, group: int = 0, uv_rot: UV_Rotation = .Deg_0, uv_rect: UV_Rect = {}) {
     p: [4][3]f32

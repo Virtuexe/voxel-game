@@ -26,7 +26,7 @@ Block_Model_Data :: struct {
 }
 block_models: [Block_Type]Block_Model_Data
 
-Block_Model :: enum {Cube, Slab, Decal, Stairs, Piston, Button, Torch, Lever,}
+Block_Model :: enum {Cube, Slab, Decal, Stairs, Piston, Button, Torch, Lever, Repeater}
 
 dynamic_models: map[Block]rl.Model
 
@@ -41,8 +41,7 @@ init_models :: proc() {
         info := block_infos[type]
         tex_info := block_infos[type].texture
         
-        data: Block_Model_Data
-        
+        data := &block_models[type]
         for is_on_idx in 0..<2 {
             is_on := is_on_idx == 1
             block := Block{type = type, is_on = is_on}
@@ -64,6 +63,12 @@ init_models :: proc() {
                     t_type := tex_info.textures[group][face]
                     if block.type == .Torch && t_type == .Torch_On && !block.is_on {
                         t_type = .Torch_Off
+                    }
+                    if block.type == .Repeater && t_type == .Torch_Off && block.is_on {
+                        t_type = .Torch_On
+                    }
+                    if block.type == .Repeater && t_type == .Repeater_Off && block.is_on {
+                        t_type = .Repeater_On
                     }
                     data.t_types[is_on_idx][idx] = t_type
                     
@@ -113,7 +118,6 @@ init_models :: proc() {
             }
         }
         
-        block_models[type] = data
     }
 }
 

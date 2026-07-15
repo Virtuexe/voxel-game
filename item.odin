@@ -5,7 +5,7 @@ import ui "raylib-ui"
 Item_Type :: enum {
     Dirt, Stone, Cobblestone, Glass, Planks,
     Slab, Stairs, Piston,
-    Wire, Button, Torch, Lever,
+    Wire, Button, Torch, Lever, Repeater,
 }
 
 Item_Data :: struct {
@@ -116,6 +116,12 @@ items := [Item_Type]Item_Info{
         block = .Lever,
         name = "Lever",
         texture = .Lever,
+        on_right_click = .Block_Place,
+    },
+    .Repeater = {
+        block = .Repeater,
+        name = "Repeater",
+        texture = .Repeater_Off,
         on_right_click = .Block_Place,
     },
 }

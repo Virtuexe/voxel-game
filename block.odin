@@ -9,12 +9,13 @@ import "core:fmt"
 Block_Type :: enum {
     Air, Dirt, Stone, Cobblestone, Glass, Planks,
     Slab, Stairs, Piston, Button, Torch,
-    Lever,
+    Lever, Repeater,
 }
 
 Block_Action :: enum {
     None,
     Activate_Wired_Blocks,
+    Delay,
     On_Off,
     Piston_Activate,
     Piston_Deactivate,
@@ -33,6 +34,7 @@ Block_Action_Proc :: proc(pos: Vec3I, data: Action_Data)
 block_actions := [Block_Action]Block_Action_Proc {
     .None = nil,
     .Activate_Wired_Blocks = activate_wired_blocks,
+    .Delay = delayed_activate_wired_blocks,
     .On_Off = on_off,
     .Piston_Activate = piston_activate,
     .Piston_Deactivate = piston_deactivate,
@@ -132,6 +134,12 @@ block_infos := [Block_Type]Block_Info {
         model = .Lever,
         on_right_click = {.Lever_Activate, {}},
     },
+    .Repeater = {
+        flags = {.HAS_BLOCK_FACE, .NO_COLLISION, .WIRE_INPUT, .WIRE_OUTPUT},
+        item = .Repeater,
+        model = .Repeater,
+        on_activate = {.Delay, {}}
+    },
 }
 
 
@@ -153,11 +161,14 @@ activate_wired_blocks :: proc(pos: Vec3I, data: Action_Data) {
                 target_block := world_get_block(target_pos)
                 info := block_infos[target_block.type]
                 if info.on_activate.type != .None {
-                    block_actions[info.on_activate.type](target_pos, info.on_activate.data)
+                    block_actions[info.on_activate.type](target_pos, info.on_activate.data) // info. ???
                 }
             }
         }
     }
+}
+delayed_activate_wired_blocks :: proc(pos: Vec3I, data: Action_Data) {
+    world_schedule_action(.Activate_Wired_Blocks, pos, 1, data, .Late)
 }
 on_off :: proc(pos: Vec3I, data: Action_Data) {
     block := world_get_block(pos)
